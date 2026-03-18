@@ -6,16 +6,18 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rdelpret/music-release-planner/backend/internal/store"
 )
 
 type Server struct {
 	router chi.Router
+	store  *store.Store
 }
 
-func NewServer() *Server {
-	s := &Server{}
-	s.router = s.routes()
-	return s
+func NewServer(s *store.Store) *Server {
+	srv := &Server{store: s}
+	srv.router = srv.routes()
+	return srv
 }
 
 func (s *Server) Start(port string) error {
