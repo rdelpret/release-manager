@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/rdelpret/music-release-planner/backend/internal/model"
+	"github.com/rdelpret/music-release-planner/backend/internal/template"
 )
 
 func (s *Store) CreateCampaign(ctx context.Context, userID, name string) (*model.Campaign, error) {
@@ -389,7 +391,53 @@ func (s *Store) duplicateTasksForGroup(ctx context.Context, tx pgx.Tx, oldGroupI
 	return nil
 }
 
-// populateTemplate is a no-op stub. Replaced with real implementation in Task 7.
 func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID string) error {
+	tmpl := template.DefaultTemplate()
+
+	for listPos, list := range tmpl {
+		var listID string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO task_lists (campaign_id, name, color, position)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id
+		`, campaignID, list.Name, list.Color, (listPos+1)*100).Scan(&listID)
+		if err != nil {
+			return fmt.Errorf("inserting task list %s: %w", list.Name, err)
+		}
+
+		for groupPos, group := range list.Groups {
+			var groupID string
+			err := tx.QueryRow(ctx, `
+				INSERT INTO task_groups (task_list_id, name, position)
+				VALUES ($1, $2, $3)
+				RETURNING id
+			`, listID, group.Name, (groupPos+1)*100).Scan(&groupID)
+			if err != nil {
+				return fmt.Errorf("inserting task group %s: %w", group.Name, err)
+			}
+
+			for taskPos, task := range group.Tasks {
+				var taskID string
+				err := tx.QueryRow(ctx, `
+					INSERT INTO tasks (task_group_id, name, position)
+					VALUES ($1, $2, $3)
+					RETURNING id
+				`, groupID, task.Name, (taskPos+1)*100).Scan(&taskID)
+				if err != nil {
+					return fmt.Errorf("inserting task %s: %w", task.Name, err)
+				}
+
+				for subPos, subtask := range task.Subtasks {
+					_, err := tx.Exec(ctx, `
+						INSERT INTO subtasks (task_id, name, position)
+						VALUES ($1, $2, $3)
+					`, taskID, subtask, (subPos+1)*100)
+					if err != nil {
+						return fmt.Errorf("inserting subtask %s: %w", subtask, err)
+					}
+				}
+			}
+		}
+	}
 	return nil
 }
