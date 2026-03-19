@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend test test-backend test-frontend build clean migrate
+.PHONY: dev dev-backend dev-frontend test test-backend test-frontend build clean migrate deploy
 
 dev:
 	@echo "Starting backend and frontend..."
@@ -28,3 +28,7 @@ clean:
 
 migrate:
 	@echo "Run: psql $$DATABASE_URL -f backend/migrations/001_initial.sql"
+
+deploy:
+	cd frontend && npm run build
+	npm run deploy
