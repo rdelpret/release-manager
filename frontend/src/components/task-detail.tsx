@@ -7,6 +7,7 @@ import { X, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { updateTask, deleteTask, createSubtask } from "@/lib/api";
 import { toast } from "sonner";
+import { RichTextEditor } from "./rich-text-editor";
 
 const statusOptions = [
   { value: "todo", label: "To Do", color: "text-text-muted" },
@@ -126,14 +127,22 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
         />
       </div>
 
-      {/* Description placeholder (Tiptap will be added in Task 14) */}
+      {/* Description */}
       <div className="mb-5">
         <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 block">
           Description
         </label>
-        <div className="text-sm text-text-muted italic p-3 border border-border rounded-lg">
-          Rich text editor (Tiptap) — coming in next task
-        </div>
+        <RichTextEditor
+          content={task.description ?? null}
+          onUpdate={async (content) => {
+            try {
+              await updateTask(task.id, { description: content } as any);
+              onUpdate();
+            } catch (err: any) {
+              toast.error(err.message);
+            }
+          }}
+        />
       </div>
 
       {/* Subtasks */}
