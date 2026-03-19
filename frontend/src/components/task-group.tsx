@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Task, TaskGroup as TaskGroupType } from "@/lib/types";
 import { TaskItem } from "./task-item";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { createTask } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -51,14 +52,19 @@ export function TaskGroup({ group, campaignId, hideDone, onSelectTask, onStatusC
 
       {!collapsed && (
         <div className="space-y-0.5">
-          {visibleTasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onSelect={onSelectTask}
-              onStatusChange={onStatusChange}
-            />
-          ))}
+          <SortableContext
+            items={visibleTasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {visibleTasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onSelect={onSelectTask}
+                onStatusChange={onStatusChange}
+              />
+            ))}
+          </SortableContext>
 
           {adding ? (
             <div className="flex gap-2 px-3 py-2">

@@ -13,6 +13,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Task } from "@/lib/types";
 import { TaskDetail } from "@/components/task-detail";
+import { DndContext, closestCenter } from "@dnd-kit/core";
+import { useTaskDragDrop } from "@/hooks/use-drag-drop";
 
 export function CampaignBoard() {
   const router = useRouter();
@@ -38,6 +40,8 @@ export function CampaignBoard() {
   if (activeList && !activeListId) {
     setActiveListId(activeList.id);
   }
+
+  const { handleDragEnd } = useTaskDragDrop(id);
 
   const handleStatusChange = async (taskId: string, status: Task["status"]) => {
     try {
@@ -83,16 +87,18 @@ export function CampaignBoard() {
       {/* Active list content */}
       {activeList && (
         <div className="mt-4 bg-bg-surface rounded-xl p-5">
-          {(activeList.task_groups ?? []).map((group) => (
-            <TaskGroup
-              key={group.id}
-              group={group}
-              campaignId={id}
-              hideDone={hideDone}
-              onSelectTask={setSelectedTask}
-              onStatusChange={handleStatusChange}
-            />
-          ))}
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            {(activeList.task_groups ?? []).map((group) => (
+              <TaskGroup
+                key={group.id}
+                group={group}
+                campaignId={id}
+                hideDone={hideDone}
+                onSelectTask={setSelectedTask}
+                onStatusChange={handleStatusChange}
+              />
+            ))}
+          </DndContext>
         </div>
       )}
 
