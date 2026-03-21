@@ -21,9 +21,15 @@ func (s *Server) routes() chi.Router {
 	r.Get("/auth/google/callback", auth.HandleCallbackWithUpsert)
 	r.Post("/auth/logout", auth.HandleLogout)
 
+	// Only register dev-login in development (#8)
+	if os.Getenv("ENV") == "development" {
+		r.Get("/auth/dev-login", auth.HandleDevLogin)
+	}
+
 	// Protected API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Use(auth.RequireAuth)
+		r.Use(bodySizeLimit(1 << 20)) // 1 MB max request body (#6)
 
 		r.Get("/me", auth.HandleMe)
 
@@ -59,6 +65,16 @@ func (s *Server) routes() chi.Router {
 	return r
 }
 
+// bodySizeLimit restricts request body size (#6)
+func bodySizeLimit(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func corsMiddleware(next http.Handler) http.Handler {
 	allowedOrigin := os.Getenv("FRONTEND_URL")
 	if allowedOrigin == "" {
@@ -67,7 +83,8 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == allowedOrigin || origin == "http://localhost:3000" {
+		// Only allow the configured origin — no hardcoded localhost fallback (#4)
+		if origin == allowedOrigin {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")

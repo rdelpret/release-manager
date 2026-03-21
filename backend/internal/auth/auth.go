@@ -68,7 +68,7 @@ func newCookieStore(secret string) *sessions.CookieStore {
 		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
 		Secure:   os.Getenv("ENV") != "development",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 	}
 	return store
 }
@@ -148,6 +148,34 @@ func HandleCallbackWithUpsert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session.Values["user_email"] = userInfo.Email
+	session.Values["user_id"] = userID
+	session.Save(r, w)
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:3000"
+	}
+	http.Redirect(w, r, frontendURL+"/dashboard", http.StatusTemporaryRedirect)
+}
+
+// HandleDevLogin bypasses OAuth for local development. Only registered when ENV=development.
+func HandleDevLogin(w http.ResponseWriter, r *http.Request) {
+	email := "dev@subwave.music"
+	name := "Dev User"
+
+	userID := ""
+	if userUpsertFn != nil {
+		var err error
+		userID, err = userUpsertFn(r.Context(), email, name, nil)
+		if err != nil {
+			log.Printf("Failed to upsert dev user: %v", err)
+			http.Error(w, "Failed to create dev user", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	session, _ := sessionStore.Get(r, sessionName)
+	session.Values["user_email"] = email
 	session.Values["user_id"] = userID
 	session.Save(r, w)
 

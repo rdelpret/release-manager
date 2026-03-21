@@ -43,7 +43,8 @@ export default {
         const container = await getRandom(env.BACKEND, 1);
         return await container.fetch(request);
       } catch (e: any) {
-        return new Response(JSON.stringify({ error: e.message }), {
+        console.error("Container routing error:", e.message);
+        return new Response(JSON.stringify({ error: "Service unavailable" }), {
           status: 502,
           headers: { "Content-Type": "application/json" },
         });

@@ -47,6 +47,14 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "id")
+	userID := auth.GetUserID(r)
+
+	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	if err != nil || !ok {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
 	campaign, err := s.store.GetFullCampaign(r.Context(), campaignID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "Campaign not found")
@@ -59,6 +67,12 @@ func (s *Server) handleDuplicateCampaign(w http.ResponseWriter, r *http.Request)
 	campaignID := chi.URLParam(r, "id")
 	userID := auth.GetUserID(r)
 
+	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	if err != nil || !ok {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
 	campaign, err := s.store.DuplicateCampaign(r.Context(), campaignID, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to duplicate campaign")
@@ -69,6 +83,13 @@ func (s *Server) handleDuplicateCampaign(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleArchiveCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "id")
+	userID := auth.GetUserID(r)
+
+	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	if err != nil || !ok {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
 
 	var req struct {
 		Archived bool `json:"archived"`
@@ -87,6 +108,14 @@ func (s *Server) handleArchiveCampaign(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "id")
+	userID := auth.GetUserID(r)
+
+	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	if err != nil || !ok {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
 	if err := s.store.DeleteCampaign(r.Context(), campaignID); err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to delete campaign")
 		return
