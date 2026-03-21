@@ -1,0 +1,8 @@
+{
+  "exclude": [
+    ".env.example",
+    "scripts/",
+    ".github/workflows/",
+    "docs/superpowers/plans/"
+  ]
+}
