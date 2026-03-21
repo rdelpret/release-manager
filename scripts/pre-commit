@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+echo "Running pre-commit checks..."
+
+# Go checks
+echo "→ Go vet..."
+(cd backend && go vet ./...)
+
+echo "→ Go build..."
+(cd backend && go build ./...)
+
+echo "→ Go tests..."
+(cd backend && go test ./internal/auth/ -count=1 -short)
+
+# Frontend checks
+echo "→ Frontend lint..."
+(cd frontend && npm run lint)
+
+echo "→ Frontend build..."
+(cd frontend && NODE_ENV=production npm run build > /dev/null 2>&1)
+
+echo "✓ All checks passed"

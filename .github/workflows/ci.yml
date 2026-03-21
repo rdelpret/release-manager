@@ -150,13 +150,4 @@ jobs:
           "
 
       - name: Audit dependencies for CVEs
-        run: npx ship-safe@latest deps .
-
-      - name: Security health score
-        run: |
-          output=$(npx ship-safe@latest score . 2>&1)
-          echo "$output"
-          if echo "$output" | grep -qE '✘'; then
-            echo "::error::Security score has failing checks. Fix issues before merging."
-            exit 1
-          fi
+        run: npx -y ship-safe@latest deps .

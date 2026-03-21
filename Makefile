@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend test test-backend test-frontend test-e2e build clean migrate deploy
+.PHONY: dev dev-backend dev-frontend test test-backend test-frontend test-e2e build clean migrate deploy setup
 
 dev:
 	@echo "Starting backend and frontend..."
@@ -35,3 +35,8 @@ migrate:
 deploy:
 	cd frontend && npm run build
 	npm run deploy
+
+setup:
+	cp scripts/pre-commit .git/hooks/pre-commit
+	chmod +x .git/hooks/pre-commit
+	@echo "Pre-commit hook installed"
