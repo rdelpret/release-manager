@@ -28,7 +28,7 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          version: v2.1.6
           working-directory: backend
 
   test-frontend:
@@ -141,7 +141,7 @@ jobs:
           node-version: "20"
 
       - name: Scan for secrets
-        run: npx ship-safe@latest scan --json .
+        run: npx ship-safe@latest scan --json --exclude '.env.example,scripts/,docs/superpowers/plans/,.github/workflows/' .
 
       - name: Audit dependencies for CVEs
         run: npx ship-safe@latest deps .

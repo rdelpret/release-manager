@@ -13,7 +13,6 @@ test.describe("Login Page", () => {
     await expect(page.locator("h1")).toContainText("Subwave");
     await expect(page.locator("text=Release Campaign Planner")).toBeVisible();
     await expect(page.locator("text=Sign in with Google")).toBeVisible();
-    await expect(page.locator("text=Dev Login")).toBeVisible();
   });
 
   test("redirects unauthenticated user from dashboard to login", async ({

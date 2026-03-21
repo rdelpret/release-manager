@@ -51,6 +51,19 @@ export default {
       }
     }
 
+    // Rewrite dynamic campaign routes to the static shell
+    // Static export produces /campaign/_.html for the [id] route
+    if (url.pathname.match(/^\/campaign\/[^/]+$/)) {
+      const rewritten = new URL(request.url);
+      rewritten.pathname = "/campaign/_";
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
+    if (url.pathname.match(/^\/campaign\/[^/]+\/calendar$/)) {
+      const rewritten = new URL(request.url);
+      rewritten.pathname = "/campaign/_/calendar";
+      return env.ASSETS.fetch(new Request(rewritten, request));
+    }
+
     // Serve static frontend
     return env.ASSETS.fetch(request);
   },
