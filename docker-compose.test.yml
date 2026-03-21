@@ -1,0 +1,11 @@
+services:
+  test-db:
+    image: postgres:17-alpine
+    ports:
+      - "5555:5432"
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: mrp_test
+    tmpfs:
+      - /var/lib/postgresql/data
