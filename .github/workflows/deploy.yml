@@ -24,19 +24,17 @@ jobs:
         working-directory: frontend
         run: NODE_ENV=production npm run build
 
-      - name: Deploy to Cloudflare
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          secrets: |
-            DATABASE_URL
-            GOOGLE_CLIENT_ID
-            GOOGLE_CLIENT_SECRET
-            SESSION_SECRET
-            ALLOWED_EMAILS
-            OAUTH_REDIRECT_URL
-            FRONTEND_URL
+      - name: Upload secrets
+        run: |
+          echo "$DATABASE_URL" | npx wrangler secret put DATABASE_URL
+          echo "$GOOGLE_CLIENT_ID" | npx wrangler secret put GOOGLE_CLIENT_ID
+          echo "$GOOGLE_CLIENT_SECRET" | npx wrangler secret put GOOGLE_CLIENT_SECRET
+          echo "$SESSION_SECRET" | npx wrangler secret put SESSION_SECRET
+          echo "$ALLOWED_EMAILS" | npx wrangler secret put ALLOWED_EMAILS
+          echo "$OAUTH_REDIRECT_URL" | npx wrangler secret put OAUTH_REDIRECT_URL
+          echo "$FRONTEND_URL" | npx wrangler secret put FRONTEND_URL
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -44,3 +42,8 @@ jobs:
           ALLOWED_EMAILS: ${{ secrets.ALLOWED_EMAILS }}
           OAUTH_REDIRECT_URL: ${{ secrets.OAUTH_REDIRECT_URL }}
           FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
