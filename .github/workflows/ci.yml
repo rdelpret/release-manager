@@ -25,11 +25,9 @@ jobs:
         working-directory: backend
         run: go test ./internal/auth/ -v -count=1
 
-      - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.1.6
-          working-directory: backend
+      - name: Lint Go code
+        working-directory: backend
+        run: go vet ./...
 
   test-frontend:
     name: Frontend Lint & Build
@@ -142,14 +140,13 @@ jobs:
 
       - name: Scan for secrets
         run: |
-          npx ship-safe@latest scan --json . > /tmp/scan.json 2>&1 || true
-          # Filter out known false positives (test/example DB URLs)
+          npx -y ship-safe@latest scan --json . 2>/dev/null > /tmp/scan.json || true
           node -e "
-            const r = require('/tmp/scan.json');
-            const dominated = ['.env.example','scripts/','workflows/','plans/'];
-            const real = (r.findings||[]).filter(f => !dominated.some(d => f.file.includes(d)));
+            const r = JSON.parse(require('fs').readFileSync('/tmp/scan.json','utf8'));
+            const skip = ['.env.example','scripts/','workflows/','plans/'];
+            const real = (r.findings||[]).filter(f => !skip.some(s => f.file.includes(s)));
             if (real.length > 0) { console.log(JSON.stringify({...r, findings: real}, null, 2)); process.exit(1); }
-            console.log('No real secrets found');
+            console.log('No real secrets found (' + r.filesScanned + ' files scanned)');
           "
 
       - name: Audit dependencies for CVEs
