@@ -1,10 +1,11 @@
 import type { Campaign, Task, Subtask } from "./types";
 
-// In dev, points to Go backend on :8080. In production, same origin (Worker proxies /api/*).
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+// In dev, Next.js rewrites proxy /api/* to Go backend.
+// In production, Cloudflare Worker proxies /api/* to the container.
+// Either way, use relative URLs.
 
 async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + url, {
+  const res = await fetch(url, {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,

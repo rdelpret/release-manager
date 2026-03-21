@@ -1,4 +1,4 @@
-.PHONY: dev dev-backend dev-frontend test test-backend test-frontend build clean migrate deploy
+.PHONY: dev dev-backend dev-frontend test test-backend test-frontend test-e2e build clean migrate deploy
 
 dev:
 	@echo "Starting backend and frontend..."
@@ -17,6 +17,9 @@ test-backend:
 
 test-frontend:
 	cd frontend && npm test
+
+test-e2e:
+	./scripts/test-e2e.sh
 
 build:
 	cd backend && go build -o ../bin/server ./cmd/server/main.go

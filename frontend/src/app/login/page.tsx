@@ -52,6 +52,12 @@ export default function LoginPage() {
         </svg>
         Sign in with Google
       </a>
+      <a
+        href="/auth/dev-login"
+        className="text-sm text-text-muted hover:text-accent transition-smooth"
+      >
+        Dev Login (skip OAuth)
+      </a>
     </div>
   );
 }

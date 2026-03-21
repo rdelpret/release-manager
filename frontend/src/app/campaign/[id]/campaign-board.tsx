@@ -25,6 +25,15 @@ export function CampaignBoard() {
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const { handleDragEnd } = useTaskDragDrop(id);
+
+  const lists = campaign?.task_lists ?? [];
+  const activeList = lists.find((l) => l.id === activeListId) ?? lists[0];
+
+  // Set initial active tab once data loads
+  if (activeList && !activeListId && lists.length > 0) {
+    setActiveListId(activeList.id);
+  }
 
   if (isLoading || !campaign) {
     return (
@@ -33,15 +42,6 @@ export function CampaignBoard() {
       </div>
     );
   }
-
-  const lists = campaign.task_lists ?? [];
-  const activeList = lists.find((l) => l.id === activeListId) ?? lists[0];
-
-  if (activeList && !activeListId) {
-    setActiveListId(activeList.id);
-  }
-
-  const { handleDragEnd } = useTaskDragDrop(id);
 
   const handleStatusChange = async (taskId: string, status: Task["status"]) => {
     try {

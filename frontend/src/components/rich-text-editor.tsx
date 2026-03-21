@@ -12,6 +12,7 @@ interface RichTextEditorProps {
 
 export function RichTextEditor({ content, onUpdate }: RichTextEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: "Add a description..." }),
