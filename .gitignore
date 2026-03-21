@@ -7,6 +7,11 @@ vendor/
 out/
 dist/
 bin/
+backend/tmp/
+backend/server
+
+# Test
+frontend/test-results/
 
 # Environment
 .env
