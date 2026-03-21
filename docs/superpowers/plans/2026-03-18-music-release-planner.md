@@ -4834,7 +4834,7 @@ Create `.env.example`:
 
 ```
 # Database
-DATABASE_URL=postgresql://user:pass@host/dbname?sslmode=require
+DATABASE_URL=<your-neon-connection-string>
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
