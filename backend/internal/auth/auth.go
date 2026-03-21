@@ -68,7 +68,7 @@ func newCookieStore(secret string) *sessions.CookieStore {
 		MaxAge:   7 * 24 * 60 * 60,
 		HttpOnly: true,
 		Secure:   os.Getenv("ENV") != "development",
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	}
 	return store
 }
