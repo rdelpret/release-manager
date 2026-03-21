@@ -150,10 +150,11 @@ Session
 | GET | `/api/me` | Current user |
 | GET | `/api/campaigns` | List user's campaigns |
 | POST | `/api/campaigns` | Create campaign (auto-populates template) |
-| POST | `/api/campaigns/:id/duplicate` | Duplicate campaign |
-| DELETE | `/api/campaigns/:id` | Delete/archive campaign |
+| POST | `/api/campaigns/:id/duplicate` | Duplicate campaign (duplicator becomes owner, no other members copied) |
+| PATCH | `/api/campaigns/:id/archive` | Toggle archived status |
+| DELETE | `/api/campaigns/:id` | Permanently delete campaign |
 | GET | `/api/campaigns/:id` | Full campaign with all nested data |
-| PATCH | `/api/tasks/:id` | Update status, due date, description, position |
+| PATCH | `/api/tasks/:id` | Update status, due date, description |
 | POST | `/api/task-groups/:id/tasks` | Add task to group |
 | DELETE | `/api/tasks/:id` | Delete task |
 | PATCH | `/api/tasks/:id/reorder` | Drag-and-drop reorder |
@@ -217,7 +218,7 @@ Session
 - **Tiptap** for rich text editor — ProseMirror-based, stores as JSON
 - **Slide-out detail panel** — task editing without leaving the board
 - **Optimistic updates** — UI updates immediately, syncs to backend, reverts on failure
-- **SWR or React Query** — cache + revalidation for data freshness
+- **React Query (TanStack Query)** — cache + revalidation for data freshness
 
 ## Theming (Subwave Brand)
 
@@ -297,7 +298,7 @@ Obtain license for cover song, Upload to distributor (subtasks: Fill out credits
 - **Auth failures:** Redirect to login page with error message
 - **API errors:** Toast notifications via shadcn/ui Sonner
 - **Optimistic update failures:** Revert UI state, show error toast
-- **Network errors:** SWR/React Query retry with exponential backoff
+- **Network errors:** React Query retry with exponential backoff
 - **403 on non-whitelisted email:** "Access denied — this tool is for Subwave team members only"
 
 ## Testing Strategy
