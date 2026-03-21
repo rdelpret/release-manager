@@ -13,6 +13,7 @@ export function useCampaign(id: string) {
   return useQuery<Campaign>({
     queryKey: ["campaign", id],
     queryFn: () => api.getCampaign(id),
+    enabled: !!id && id !== "_",
   });
 }
 

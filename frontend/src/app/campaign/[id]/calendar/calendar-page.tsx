@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useCampaign } from "@/hooks/use-campaign";
 import { CalendarView } from "@/components/calendar-view";
@@ -13,7 +13,15 @@ import type { Task } from "@/lib/types";
 export function CalendarPageContent() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
-  const id = params?.id ?? "";
+  const id = useMemo(() => {
+    const paramsId = params?.id;
+    if (paramsId && paramsId !== "_") return paramsId;
+    if (typeof window !== "undefined") {
+      const match = window.location.pathname.match(/\/campaign\/([^/]+)/);
+      return match?.[1] ?? "";
+    }
+    return "";
+  }, [params?.id]);
   const { data: campaign, isLoading } = useCampaign(id);
   const queryClient = useQueryClient();
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
