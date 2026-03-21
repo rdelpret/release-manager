@@ -32,5 +32,11 @@ Thumbs.db
 # Superpowers brainstorm sessions
 .superpowers/
 
+# Terraform
+*.tfvars
+*.tfstate
+*.tfstate.backup
+.terraform/
+
 # Wrangler
 .wrangler/
