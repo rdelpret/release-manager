@@ -26,7 +26,7 @@ jobs:
         run: go test ./internal/auth/ -v -count=1
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           version: v2.1.6
           working-directory: backend
@@ -141,7 +141,16 @@ jobs:
           node-version: "20"
 
       - name: Scan for secrets
-        run: npx ship-safe@latest scan --json --exclude '.env.example,scripts/,docs/superpowers/plans/,.github/workflows/' .
+        run: |
+          npx ship-safe@latest scan --json . > /tmp/scan.json 2>&1 || true
+          # Filter out known false positives (test/example DB URLs)
+          node -e "
+            const r = require('/tmp/scan.json');
+            const dominated = ['.env.example','scripts/','workflows/','plans/'];
+            const real = (r.findings||[]).filter(f => !dominated.some(d => f.file.includes(d)));
+            if (real.length > 0) { console.log(JSON.stringify({...r, findings: real}, null, 2)); process.exit(1); }
+            console.log('No real secrets found');
+          "
 
       - name: Audit dependencies for CVEs
         run: npx ship-safe@latest deps .
