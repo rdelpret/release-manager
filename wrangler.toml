@@ -1,6 +1,11 @@
 name = "music-release-planner"
 main = "src/index.ts"
 compatibility_date = "2025-09-01"
+account_id = "9273f425d8ef36e523a3db0fe88cba0b"
+
+routes = [
+  { pattern = "release.rdelpret.com/*", zone_name = "rdelpret.com" },
+]
 
 [observability]
 enabled = true
