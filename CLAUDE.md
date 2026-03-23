@@ -44,6 +44,14 @@ make migrate    # Run database migrations
 
 ## Auth
 
-- Google OAuth only, 2 whitelisted email addresses
+- Google OAuth only, whitelisted email addresses
 - Non-whitelisted emails get 403 at callback
 - Session cookie checked by auth middleware on all /api/* routes
+
+## Workflow
+
+- **Never push directly to main.** Always create a feature branch and PR.
+- Branch protection requires all CI checks to pass before merge.
+- At the start of each session or when a task is done: `git checkout main && git pull` then create a new branch.
+- Pre-commit hook runs: go vet, go build, go test, npm lint, production build.
+- E2E tests run in CI against a Docker Postgres (not prod DB).
