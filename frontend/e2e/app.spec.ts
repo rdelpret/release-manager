@@ -107,33 +107,33 @@ test.describe("Campaign Board", () => {
       timeout: 5000,
     });
 
-    // Should see tasks from the template (first tab: Campaign Assets > Song Assets)
-    await expect(page.locator("text=Final Master")).toBeVisible({
+    // Should see tasks from the template (first tab: Campaign Assets > Audio Production)
+    await expect(page.locator("text=Final mixdown")).toBeVisible({
       timeout: 5000,
     });
   });
 
   test("can cycle task status", async ({ page }) => {
-    await expect(page.locator("text=Final Master")).toBeVisible({
+    await expect(page.locator("text=Final mixdown")).toBeVisible({
       timeout: 5000,
     });
 
     // Find the status button for Final Master and click it
-    const taskRow = page.locator("text=Final Master").locator("..");
+    const taskRow = page.locator("text=Final mixdown").locator("..");
     const statusButton = taskRow.locator("button").first();
     await statusButton.click();
 
     // Status should have changed (hard to assert exact state, just verify no error)
-    await expect(page.locator("text=Final Master")).toBeVisible();
+    await expect(page.locator("text=Final mixdown")).toBeVisible();
   });
 
   test("can open task detail panel", async ({ page }) => {
-    await expect(page.locator("text=Final Master")).toBeVisible({
+    await expect(page.locator("text=Final mixdown")).toBeVisible({
       timeout: 5000,
     });
 
     // Click on the task name to open detail panel
-    await page.locator("text=Final Master").click();
+    await page.locator("text=Final mixdown").click();
 
     // Detail panel should appear with status options and due date
     await expect(page.locator("text=Status")).toBeVisible({ timeout: 3000 });
@@ -146,11 +146,11 @@ test.describe("Campaign Board", () => {
       timeout: 5000,
     });
 
-    // Click on PR tab
-    await page.locator("button:has-text('PR')").click();
+    // Click on PR & Outreach tab
+    await page.getByRole("button", { name: "PR & OUTREACH" }).click();
 
     // Should see PR group header
-    await expect(page.getByRole("button", { name: /Media Outreach/ })).toBeVisible({
+    await expect(page.getByRole("button", { name: /Press & Blog Outreach/ })).toBeVisible({
       timeout: 3000,
     });
   });
