@@ -28,9 +28,7 @@ func DefaultTemplate() []TemplateList {
 					Name: "Audio Production",
 					Tasks: []TemplateTask{
 						{Name: "Final mixdown + master (WAV + MP3)"},
-						{Name: "Request Dolby Atmos / spatial audio master"},
 						{Name: "Extended mix"},
-						{Name: "Radio edit (if applicable)"},
 						{Name: "DJ-friendly intro/outro edit"},
 						{Name: "Stems pack for remixers"},
 						{Name: "Sync-ready edits (30s, 60s, instrumental)"},
