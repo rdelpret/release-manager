@@ -39,6 +39,7 @@ func (s *Server) routes() chi.Router {
 		r.Get("/campaigns/{id}", s.handleGetCampaign)
 		r.Post("/campaigns/{id}/duplicate", s.handleDuplicateCampaign)
 		r.Patch("/campaigns/{id}/archive", s.handleArchiveCampaign)
+		r.Patch("/campaigns/{id}/release-date", s.handleSetReleaseDate)
 		r.Delete("/campaigns/{id}", s.handleDeleteCampaign)
 
 		// Tasks

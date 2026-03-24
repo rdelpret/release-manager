@@ -87,11 +87,11 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 	var campaign model.Campaign
 	err = tx.QueryRow(ctx, `
-		INSERT INTO campaigns (created_by, name)
-		VALUES ($1, $2)
-		RETURNING id, created_by, name, archived, created_at, updated_at
-	`, userID, name).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
-		&campaign.Archived, &campaign.CreatedAt, &campaign.UpdatedAt)
+		INSERT INTO campaigns (created_by, name, release_date, schedule_weeks)
+		VALUES ($1, $2, $3, COALESCE($4, 8))
+		RETURNING id, created_by, name, archived, release_date, schedule_weeks, created_at, updated_at
+	`, userID, name, releaseDate, 8).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
+		&campaign.Archived, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.created_by, c.name, c.archived, c.created_at, c.updated_at
+		SELECT c.id, c.created_by, c.name, c.archived, c.release_date, c.schedule_weeks, c.created_at, c.updated_at
 		FROM campaigns c
 		JOIN campaign_members cm ON cm.campaign_id = c.id
 		WHERE cm.user_id = $1
@@ -130,7 +130,7 @@ func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campa
 	var campaigns []model.Campaign
 	for rows.Next() {
 		var c model.Campaign
-		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.ReleaseDate, &c.ScheduleWeeks, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -142,7 +142,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	// Single query with JOINs to avoid N+1 round trips to the database
 	rows, err := s.pool.Query(ctx, `
 		SELECT
-			c.id, c.created_by, c.name, c.archived, c.created_at, c.updated_at,
+			c.id, c.created_by, c.name, c.archived, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
 			tl.id, tl.campaign_id, tl.name, tl.color, tl.position,
 			tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed,
 			t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.position, t.created_at, t.updated_at,
@@ -170,6 +170,8 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		var (
 			cID, cCreatedBy, cName                     string
 			cArchived                                  bool
+			cReleaseDate                               *string
+			cScheduleWeeks                             int
 			cCreatedAt, cUpdatedAt                     time.Time
 			tlID, tlCampaignID, tlName, tlColor        *string
 			tlPosition                                 *int
@@ -187,7 +189,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		)
 
 		err := rows.Scan(
-			&cID, &cCreatedBy, &cName, &cArchived, &cCreatedAt, &cUpdatedAt,
+			&cID, &cCreatedBy, &cName, &cArchived, &cReleaseDate, &cScheduleWeeks, &cCreatedAt, &cUpdatedAt,
 			&tlID, &tlCampaignID, &tlName, &tlColor, &tlPosition,
 			&tgID, &tgTaskListID, &tgName, &tgPosition, &tgCollapsed,
 			&tID, &tTaskGroupID, &tName, &tDescription, &tStatus, &tDueDate, &tPosition, &tCreatedAt, &tUpdatedAt,
@@ -200,6 +202,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		if campaign == nil {
 			campaign = &model.Campaign{
 				ID: cID, CreatedBy: cCreatedBy, Name: cName, Archived: cArchived,
+				ReleaseDate: cReleaseDate, ScheduleWeeks: cScheduleWeeks,
 				CreatedAt: cCreatedAt, UpdatedAt: cUpdatedAt,
 			}
 		}
@@ -288,6 +291,68 @@ func (s *Store) ArchiveCampaign(ctx context.Context, campaignID string, archived
 	return err
 }
 
+// SetReleaseDate updates the release date and schedule, then recalculates all task due dates.
+func (s *Store) SetReleaseDate(ctx context.Context, campaignID, releaseDate string, scheduleWeeks int) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Update campaign
+	_, err = tx.Exec(ctx, `
+		UPDATE campaigns SET release_date = $2, schedule_weeks = $3, updated_at = now()
+		WHERE id = $1
+	`, campaignID, releaseDate, scheduleWeeks)
+	if err != nil {
+		return err
+	}
+
+	// Parse release date
+	relDate, err := time.Parse("2006-01-02", releaseDate)
+	if err != nil {
+		return fmt.Errorf("invalid release date: %w", err)
+	}
+
+	// Scale factor: 4-week schedule compresses pre-release by 50%
+	scale := 1.0
+	if scheduleWeeks == 4 {
+		scale = 0.5
+	}
+
+	// Recalculate due dates for all tasks using the template offsets
+	tmpl := template.DefaultTemplate()
+	for _, list := range tmpl {
+		for _, group := range list.Groups {
+			for _, task := range group.Tasks {
+				if task.DaysOffset == nil {
+					continue
+				}
+				offset := *task.DaysOffset
+				// Scale pre-release days (negative offsets) for shorter schedules
+				if offset < 0 {
+					offset = int(float64(offset) * scale)
+				}
+				dueDate := relDate.AddDate(0, 0, offset).Format("2006-01-02")
+
+				_, err = tx.Exec(ctx, `
+					UPDATE tasks SET due_date = $1
+					WHERE task_group_id IN (
+						SELECT tg.id FROM task_groups tg
+						JOIN task_lists tl ON tl.id = tg.task_list_id
+						WHERE tl.campaign_id = $2
+					) AND name = $3
+				`, dueDate, campaignID, task.Name)
+				if err != nil {
+					return fmt.Errorf("updating due date for %s: %w", task.Name, err)
+				}
+			}
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (s *Store) DeleteCampaign(ctx context.Context, campaignID string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM campaigns WHERE id = $1`, campaignID)
 	return err
@@ -310,9 +375,9 @@ func (s *Store) DuplicateCampaign(ctx context.Context, sourceCampaignID, userID 
 	err = tx.QueryRow(ctx, `
 		INSERT INTO campaigns (created_by, name)
 		VALUES ($1, $2)
-		RETURNING id, created_by, name, archived, created_at, updated_at
+		RETURNING id, created_by, name, archived, release_date, schedule_weeks, created_at, updated_at
 	`, userID, sourceName+" (Copy)").Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
-		&campaign.Archived, &campaign.CreatedAt, &campaign.UpdatedAt)
+		&campaign.Archived, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

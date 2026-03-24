@@ -11,6 +11,8 @@ export interface Campaign {
   created_by: string;
   name: string;
   archived: boolean;
+  release_date?: string;
+  schedule_weeks: number;
   created_at: string;
   updated_at: string;
   task_lists?: TaskList[];

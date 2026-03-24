@@ -33,6 +33,11 @@ export const duplicateCampaign = (id: string) =>
   fetchJSON<Campaign>(`/api/campaigns/${id}/duplicate`, { method: "POST" });
 export const archiveCampaign = (id: string, archived: boolean) =>
   fetchJSON<void>(`/api/campaigns/${id}/archive`, { method: "PATCH", body: JSON.stringify({ archived }) });
+export const setReleaseDate = (id: string, releaseDate: string, scheduleWeeks: number) =>
+  fetchJSON<void>(`/api/campaigns/${id}/release-date`, {
+    method: "PATCH",
+    body: JSON.stringify({ release_date: releaseDate, schedule_weeks: scheduleWeeks }),
+  });
 export const deleteCampaign = (id: string) =>
   fetchJSON<void>(`/api/campaigns/${id}`, { method: "DELETE" });
 
