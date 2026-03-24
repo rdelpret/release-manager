@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const { data: campaigns, isLoading } = useCampaigns();
   const createCampaign = useCreateCampaign();
   const [newName, setNewName] = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
@@ -37,14 +38,18 @@ export default function DashboardPage() {
 
   const handleCreate = () => {
     if (!newName.trim()) return;
-    createCampaign.mutate(newName.trim(), {
-      onSuccess: () => {
-        setNewName("");
-        setShowCreate(false);
-        toast.success("Campaign created");
-      },
-      onError: (err) => toast.error(err.message),
-    });
+    createCampaign.mutate(
+      { name: newName.trim(), releaseDate: releaseDate || undefined },
+      {
+        onSuccess: () => {
+          setNewName("");
+          setReleaseDate("");
+          setShowCreate(false);
+          toast.success("Campaign created");
+        },
+        onError: (err) => toast.error(err.message),
+      }
+    );
   };
 
   const handleLogout = async () => {
@@ -74,21 +79,37 @@ export default function DashboardPage() {
       </div>
 
       {showCreate && (
-        <div className="mb-6 flex gap-3 items-center bg-bg-surface p-4 rounded-xl">
-          <input
-            autoFocus
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            placeholder="Campaign name..."
-            className="flex-1 bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
-          />
-          <Button onClick={handleCreate} className="bg-accent text-bg-base hover:bg-accent-dark">
-            Create
-          </Button>
-          <Button variant="ghost" onClick={() => setShowCreate(false)}>
-            Cancel
-          </Button>
+        <div className="mb-6 bg-bg-surface p-4 rounded-xl space-y-3">
+          <div className="flex gap-3 items-center">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+              placeholder="Campaign name..."
+              className="flex-1 bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            <Button onClick={handleCreate} className="bg-accent text-bg-base hover:bg-accent-dark">
+              Create
+            </Button>
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>
+              Cancel
+            </Button>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-xs text-text-muted">Release Date</label>
+            <input
+              type="date"
+              value={releaseDate}
+              onChange={(e) => setReleaseDate(e.target.value)}
+              className="bg-transparent border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+            />
+            {releaseDate && (
+              <span className="text-xs text-text-muted">
+                Tasks will be auto-dated relative to this date
+              </span>
+            )}
+          </div>
         </div>
       )}
 

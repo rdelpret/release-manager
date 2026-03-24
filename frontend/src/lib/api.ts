@@ -23,8 +23,11 @@ export const logout = () => fetchJSON<void>("/auth/logout", { method: "POST" });
 
 // Campaigns
 export const listCampaigns = () => fetchJSON<Campaign[]>("/api/campaigns");
-export const createCampaign = (name: string) =>
-  fetchJSON<Campaign>("/api/campaigns", { method: "POST", body: JSON.stringify({ name }) });
+export const createCampaign = (name: string, releaseDate?: string) =>
+  fetchJSON<Campaign>("/api/campaigns", {
+    method: "POST",
+    body: JSON.stringify({ name, release_date: releaseDate || undefined }),
+  });
 export const getCampaign = (id: string) => fetchJSON<Campaign>(`/api/campaigns/${id}`);
 export const duplicateCampaign = (id: string) =>
   fetchJSON<Campaign>(`/api/campaigns/${id}/duplicate`, { method: "POST" });

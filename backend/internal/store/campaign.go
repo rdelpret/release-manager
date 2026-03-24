@@ -78,7 +78,7 @@ func (s *Store) IsCampaignMemberViaList(ctx context.Context, listID, userID stri
 	return exists, err
 }
 
-func (s *Store) CreateCampaign(ctx context.Context, userID, name string) (*model.Campaign, error) {
+func (s *Store) CreateCampaign(ctx context.Context, userID, name string, releaseDate *string) (*model.Campaign, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -104,8 +104,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string) (*model
 		return nil, err
 	}
 
-	// Populate default template (stub — replaced with real implementation in Task 7)
-	if err := s.populateTemplate(ctx, tx, campaign.ID); err != nil {
+	if err := s.populateTemplate(ctx, tx, campaign.ID, releaseDate); err != nil {
 		return nil, err
 	}
 
@@ -469,8 +468,17 @@ func (s *Store) duplicateTasksForGroup(ctx context.Context, tx pgx.Tx, oldGroupI
 	return nil
 }
 
-func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID string) error {
+func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID string, releaseDate *string) error {
 	tmpl := template.DefaultTemplate()
+
+	// Parse release date if provided
+	var relDate *time.Time
+	if releaseDate != nil && *releaseDate != "" {
+		t, err := time.Parse("2006-01-02", *releaseDate)
+		if err == nil {
+			relDate = &t
+		}
+	}
 
 	for listPos, list := range tmpl {
 		var listID string
@@ -495,12 +503,19 @@ func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID stri
 			}
 
 			for taskPos, task := range group.Tasks {
+				// Calculate due date from release date + offset
+				var dueDate *string
+				if relDate != nil && task.DaysOffset != nil {
+					d := relDate.AddDate(0, 0, *task.DaysOffset).Format("2006-01-02")
+					dueDate = &d
+				}
+
 				var taskID string
 				err := tx.QueryRow(ctx, `
-					INSERT INTO tasks (task_group_id, name, position)
-					VALUES ($1, $2, $3)
+					INSERT INTO tasks (task_group_id, name, due_date, position)
+					VALUES ($1, $2, $3, $4)
 					RETURNING id
-				`, groupID, task.Name, (taskPos+1)*100).Scan(&taskID)
+				`, groupID, task.Name, dueDate, (taskPos+1)*100).Scan(&taskID)
 				if err != nil {
 					return fmt.Errorf("inserting task %s: %w", task.Name, err)
 				}
