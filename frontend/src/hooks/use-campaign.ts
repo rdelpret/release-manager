@@ -20,7 +20,8 @@ export function useCampaign(id: string) {
 export function useCreateCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => api.createCampaign(name),
+    mutationFn: ({ name, releaseDate }: { name: string; releaseDate?: string }) =>
+      api.createCampaign(name, releaseDate),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
   });
 }

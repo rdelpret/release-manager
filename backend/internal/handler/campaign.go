@@ -26,7 +26,8 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r)
 
 	var req struct {
-		Name string `json:"name"`
+		Name        string  `json:"name"`
+		ReleaseDate *string `json:"release_date,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body")
@@ -37,7 +38,7 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	campaign, err := s.store.CreateCampaign(r.Context(), userID, req.Name)
+	campaign, err := s.store.CreateCampaign(r.Context(), userID, req.Name, req.ReleaseDate)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to create campaign")
 		return
