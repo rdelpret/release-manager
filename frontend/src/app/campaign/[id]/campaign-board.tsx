@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useCampaign } from "@/hooks/use-campaign";
+import { useCampaign, useUsers } from "@/hooks/use-campaign";
 import { TaskListTabs } from "@/components/task-list-tabs";
 import { TaskGroup } from "@/components/task-group";
 import { HideDoneToggle } from "@/components/hide-done-toggle";
@@ -31,6 +31,7 @@ export function CampaignBoard() {
     return "";
   }, [params?.id]);
   const { data: campaign, isLoading } = useCampaign(id);
+  const { data: users } = useUsers();
   const queryClient = useQueryClient();
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
@@ -163,6 +164,7 @@ export function CampaignBoard() {
                 group={group}
                 campaignId={id}
                 hideDone={hideDone}
+                users={users}
                 onSelectTask={setSelectedTask}
                 onStatusChange={handleStatusChange}
               />

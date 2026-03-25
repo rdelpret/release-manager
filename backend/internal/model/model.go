@@ -24,6 +24,11 @@ type Campaign struct {
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	TaskLists     []TaskList `json:"task_lists,omitempty"`
+
+	// Stats fields — populated by ListCampaigns, not stored in DB
+	TotalTasks   int `json:"total_tasks"`
+	DoneTasks    int `json:"done_tasks"`
+	OverdueTasks int `json:"overdue_tasks"`
 }
 
 type CampaignMember struct {
@@ -57,6 +62,7 @@ type Task struct {
 	Description *json.RawMessage `json:"description,omitempty"`
 	Status      string           `json:"status"`
 	DueDate     *string          `json:"due_date,omitempty"`
+	AssignedTo  *string          `json:"assigned_to,omitempty"`
 	Position    int              `json:"position"`
 	CreatedAt   time.Time        `json:"created_at"`
 	UpdatedAt   time.Time        `json:"updated_at"`

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rdelpret/music-release-planner/backend/internal/auth"
+	"github.com/rdelpret/music-release-planner/backend/internal/model"
 	"github.com/rdelpret/music-release-planner/backend/internal/store"
 )
 
@@ -173,6 +174,18 @@ func (s *Server) handleDeleteSubtask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := s.store.ListUsers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to list users")
+		return
+	}
+	if users == nil {
+		users = []model.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
 }
 
 // Reorder handlers
