@@ -8,7 +8,7 @@ import { TaskGroup } from "@/components/task-group";
 import { HideDoneToggle } from "@/components/hide-done-toggle";
 import { ArrowLeft, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { updateTask } from "@/lib/api";
+import { updateTask, setReleaseDate } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Task } from "@/lib/types";
@@ -36,6 +36,11 @@ export function CampaignBoard() {
   const [hideDone, setHideDone] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { handleDragEnd } = useTaskDragDrop(id);
+
+  const releaseDate = campaign?.release_date ?? null;
+  const daysUntilRelease = releaseDate
+    ? Math.ceil((new Date(releaseDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   const lists = campaign?.task_lists ?? [];
   const activeList = lists.find((l) => l.id === activeListId) ?? lists[0];
@@ -83,6 +88,60 @@ export function CampaignBoard() {
             Calendar
           </Button>
         </div>
+      </div>
+
+      {/* Release date + schedule */}
+      <div className="flex items-center gap-4 mb-4 bg-bg-surface rounded-lg px-4 py-3">
+        <label className="text-xs text-text-muted">Release Date</label>
+        <input
+          type="date"
+          value={campaign.release_date ?? ""}
+          onChange={async (e) => {
+            const date = e.target.value;
+            if (!date) return;
+            try {
+              await setReleaseDate(id, date, campaign.schedule_weeks || 8);
+              queryClient.invalidateQueries({ queryKey: ["campaign", id] });
+              toast.success("Release date set — task dates updated");
+            } catch (err: any) {
+              toast.error(err.message);
+            }
+          }}
+          className="bg-transparent border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+        />
+        <label className="text-xs text-text-muted">Schedule</label>
+        <div className="flex gap-1">
+          {[4, 8].map((weeks) => (
+            <button
+              key={weeks}
+              onClick={async () => {
+                if (!campaign.release_date) {
+                  toast.error("Set a release date first");
+                  return;
+                }
+                try {
+                  await setReleaseDate(id, campaign.release_date, weeks);
+                  queryClient.invalidateQueries({ queryKey: ["campaign", id] });
+                  toast.success(`Switched to ${weeks}-week schedule`);
+                } catch (err: any) {
+                  toast.error(err.message);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-smooth ${
+                (campaign.schedule_weeks || 8) === weeks
+                  ? "bg-accent/20 text-accent"
+                  : "text-text-muted hover:text-text-primary"
+              }`}
+            >
+              {weeks}W
+            </button>
+          ))}
+        </div>
+        {daysUntilRelease !== null && (
+          <span className="text-xs text-text-muted ml-auto">
+            {daysUntilRelease} days until release
+          </span>
+        )}
       </div>
 
       {/* Tabs */}

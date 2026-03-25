@@ -107,6 +107,40 @@ func (s *Server) handleArchiveCampaign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (s *Server) handleSetReleaseDate(w http.ResponseWriter, r *http.Request) {
+	campaignID := chi.URLParam(r, "id")
+	userID := auth.GetUserID(r)
+
+	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	if err != nil || !ok {
+		writeError(w, http.StatusForbidden, "Forbidden")
+		return
+	}
+
+	var req struct {
+		ReleaseDate   string `json:"release_date"`
+		ScheduleWeeks int    `json:"schedule_weeks"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if req.ReleaseDate == "" {
+		writeError(w, http.StatusBadRequest, "release_date is required")
+		return
+	}
+	if req.ScheduleWeeks != 4 && req.ScheduleWeeks != 8 {
+		writeError(w, http.StatusBadRequest, "schedule_weeks must be 4 or 8")
+		return
+	}
+
+	if err := s.store.SetReleaseDate(r.Context(), campaignID, req.ReleaseDate, req.ScheduleWeeks); err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to set release date")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 func (s *Server) handleDeleteCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "id")
 	userID := auth.GetUserID(r)

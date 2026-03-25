@@ -29,7 +29,9 @@ PSQL="/opt/homebrew/Cellar/libpq/18.3/bin/psql"
 if [ ! -f "$PSQL" ]; then
   PSQL="psql"
 fi
-$PSQL "$DATABASE_URL" -f backend/migrations/001_initial.sql
+for f in backend/migrations/*.sql; do
+  $PSQL "$DATABASE_URL" -f "$f"
+done
 
 # Build and start backend
 echo "Starting backend..."

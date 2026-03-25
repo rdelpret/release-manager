@@ -14,13 +14,15 @@ type User struct {
 }
 
 type Campaign struct {
-	ID        string     `json:"id"`
-	CreatedBy string     `json:"created_by"`
-	Name      string     `json:"name"`
-	Archived  bool       `json:"archived"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	TaskLists []TaskList `json:"task_lists,omitempty"`
+	ID            string     `json:"id"`
+	CreatedBy     string     `json:"created_by"`
+	Name          string     `json:"name"`
+	Archived      bool       `json:"archived"`
+	ReleaseDate   *string    `json:"release_date,omitempty"`
+	ScheduleWeeks int        `json:"schedule_weeks"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+	TaskLists     []TaskList `json:"task_lists,omitempty"`
 }
 
 type CampaignMember struct {
