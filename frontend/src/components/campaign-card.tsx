@@ -62,9 +62,14 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           </Button>
         </div>
       </div>
-      <p className="mt-2 text-sm text-text-muted">
-        Updated {new Date(campaign.updated_at).toLocaleDateString()}
-      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <span className="inline-block rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-text-muted uppercase tracking-wider">
+          {campaign.template_type === "soundcloud_flip" ? "SC Flip" : campaign.template_type === "lp_ep" ? "LP/EP" : "Single"}
+        </span>
+        <span className="text-sm text-text-muted">
+          Updated {new Date(campaign.updated_at).toLocaleDateString()}
+        </span>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { Campaign, Task, Subtask } from "./types";
+import type { Campaign, Task, Subtask, TemplateType } from "./types";
 
 // In dev, Next.js rewrites proxy /api/* to Go backend.
 // In production, Cloudflare Worker proxies /api/* to the container.
@@ -23,10 +23,14 @@ export const logout = () => fetchJSON<void>("/auth/logout", { method: "POST" });
 
 // Campaigns
 export const listCampaigns = () => fetchJSON<Campaign[]>("/api/campaigns");
-export const createCampaign = (name: string, releaseDate?: string) =>
+export const createCampaign = (name: string, releaseDate?: string, templateType?: TemplateType) =>
   fetchJSON<Campaign>("/api/campaigns", {
     method: "POST",
-    body: JSON.stringify({ name, release_date: releaseDate || undefined }),
+    body: JSON.stringify({
+      name,
+      release_date: releaseDate || undefined,
+      template_type: templateType || "single",
+    }),
   });
 export const getCampaign = (id: string) => fetchJSON<Campaign>(`/api/campaigns/${id}`);
 export const duplicateCampaign = (id: string) =>

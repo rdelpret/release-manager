@@ -10,7 +10,7 @@ import (
 func createTestGroup(t *testing.T, s *Store, userID string) (campaignID, groupID string) {
 	t.Helper()
 	ctx := context.Background()
-	campaign, err := s.CreateCampaign(ctx, userID, "Test Campaign")
+	campaign, err := s.CreateCampaign(ctx, userID, "Test Campaign", nil, "single")
 	if err != nil {
 		t.Fatalf("failed to create campaign: %v", err)
 	}

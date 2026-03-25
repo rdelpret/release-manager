@@ -10,7 +10,7 @@ import (
 func TestReorderTask(t *testing.T) {
 	s := setupTestStore(t)
 	user := createTestUser(t, s)
-	campaign, _ := s.CreateCampaign(context.Background(), user.ID, "Reorder Test")
+	campaign, _ := s.CreateCampaign(context.Background(), user.ID, "Reorder Test", nil, "single")
 	defer s.DeleteCampaign(context.Background(), campaign.ID)
 
 	full, _ := s.GetFullCampaign(context.Background(), campaign.ID)
