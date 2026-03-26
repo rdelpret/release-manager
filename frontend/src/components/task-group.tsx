@@ -72,6 +72,7 @@ export function TaskGroup({ group, campaignId, hideDone, users, onSelectTask, on
             <div className="flex gap-2 px-3 py-2">
               <input
                 autoFocus
+                autoComplete="off"
                 value={newTaskName}
                 onChange={(e) => setNewTaskName(e.target.value)}
                 onKeyDown={(e) => {

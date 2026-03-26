@@ -27,6 +27,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body
         className={`${spaceGrotesk.variable} ${inter.variable} antialiased min-h-screen`}
+        data-1p-ignore
+        data-lpignore="true"
+        data-form-type="other"
       >
         <Providers>{children}</Providers>
       </body>

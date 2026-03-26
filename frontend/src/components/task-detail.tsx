@@ -96,6 +96,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={handleNameBlur}
+          autoComplete="off"
           className="text-lg font-heading font-semibold bg-transparent text-text-primary border-none focus:outline-none focus:ring-0 w-full"
         />
         <Button variant="ghost" size="icon" onClick={onClose}>
@@ -133,6 +134,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
         <select
           value={task.assigned_to ?? ""}
           onChange={(e) => handleAssign(e.target.value)}
+          autoComplete="off"
           className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
         >
           <option value="">Unassigned</option>
@@ -151,6 +153,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
         </label>
         <input
           type="date"
+          autoComplete="off"
           value={dueDate}
           onChange={(e) => handleDueDateChange(e.target.value)}
           className="bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
@@ -191,6 +194,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
             onChange={(e) => setNewSubtaskName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
             placeholder="Add subtask..."
+            autoComplete="off"
             className="flex-1 bg-transparent border-b border-border text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
           />
           <button onClick={handleAddSubtask} className="text-accent">
