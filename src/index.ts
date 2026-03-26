@@ -15,7 +15,7 @@ interface Env {
 
 export class Backend extends Container<Env> {
   defaultPort = 8080;
-  sleepAfter = "10m";
+  sleepAfter = "2h";
   enableInternet = true;
 
   constructor(ctx: DurableObject["ctx"], env: Env) {
