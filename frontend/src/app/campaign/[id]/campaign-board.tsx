@@ -107,6 +107,7 @@ export function CampaignBoard() {
         <label className="text-xs text-text-muted">Release Date</label>
         <input
           type="date"
+          autoComplete="off"
           value={campaign.release_date ?? ""}
           onChange={async (e) => {
             const date = e.target.value;

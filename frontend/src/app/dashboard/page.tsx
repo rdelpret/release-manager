@@ -114,6 +114,7 @@ export default function DashboardPage() {
           <div className="flex gap-3 items-center">
             <input
               autoFocus
+              autoComplete="off"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCreate()}
@@ -131,6 +132,7 @@ export default function DashboardPage() {
             <label className="text-xs text-text-muted">Release Date</label>
             <input
               type="date"
+              autoComplete="off"
               value={releaseDate}
               onChange={(e) => setReleaseDate(e.target.value)}
               className="bg-transparent border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
