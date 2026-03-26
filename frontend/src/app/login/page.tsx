@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function LoginPage() {
-  const { email, loading } = useAuth();
+  const { email, loading, waking } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -17,7 +17,12 @@ export default function LoginPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-text-muted">Loading...</div>
+        <div className="text-center">
+          <div className="text-text-muted">Loading...</div>
+          {waking && (
+            <div className="text-xs text-text-muted mt-2">Waking up server — this takes a few seconds on first visit</div>
+          )}
+        </div>
       </div>
     );
   }

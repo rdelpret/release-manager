@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import type { TemplateType } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { email, loading } = useAuth();
+  const { email, loading, waking } = useAuth();
   const router = useRouter();
   const { data: campaigns, isLoading } = useCampaigns();
   const createCampaign = useCreateCampaign();
@@ -30,7 +30,12 @@ export default function DashboardPage() {
   if (loading || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="text-text-muted">Loading...</div>
+        <div className="text-center">
+          <div className="text-text-muted">Loading...</div>
+          {waking && (
+            <div className="text-xs text-text-muted mt-2">Waking up server — this takes a few seconds on first visit</div>
+          )}
+        </div>
       </div>
     );
   }
