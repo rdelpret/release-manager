@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Task, TaskGroup as TaskGroupType } from "@/lib/types";
+import type { Task, TaskGroup as TaskGroupType, User } from "@/lib/types";
 import { TaskItem } from "./task-item";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -13,11 +13,12 @@ interface TaskGroupProps {
   group: TaskGroupType;
   campaignId: string;
   hideDone: boolean;
+  users?: User[];
   onSelectTask: (task: Task) => void;
   onStatusChange: (taskId: string, status: Task["status"]) => void;
 }
 
-export function TaskGroup({ group, campaignId, hideDone, onSelectTask, onStatusChange }: TaskGroupProps) {
+export function TaskGroup({ group, campaignId, hideDone, users, onSelectTask, onStatusChange }: TaskGroupProps) {
   const [collapsed, setCollapsed] = useState(group.collapsed);
   const [adding, setAdding] = useState(false);
   const [newTaskName, setNewTaskName] = useState("");
@@ -60,6 +61,7 @@ export function TaskGroup({ group, campaignId, hideDone, onSelectTask, onStatusC
               <TaskItem
                 key={task.id}
                 task={task}
+                users={users}
                 onSelect={onSelectTask}
                 onStatusChange={onStatusChange}
               />

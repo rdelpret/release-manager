@@ -19,6 +19,9 @@ export interface Campaign {
   created_at: string;
   updated_at: string;
   task_lists?: TaskList[];
+  total_tasks: number;
+  done_tasks: number;
+  overdue_tasks: number;
 }
 
 export interface TaskList {
@@ -46,6 +49,7 @@ export interface Task {
   description?: Record<string, unknown>;
   status: "todo" | "in_progress" | "done";
   due_date?: string;
+  assigned_to?: string;
   position: number;
   created_at: string;
   updated_at: string;

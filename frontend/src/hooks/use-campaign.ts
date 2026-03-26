@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/lib/api";
-import type { Campaign, TemplateType } from "@/lib/types";
+import type { Campaign, TemplateType, User } from "@/lib/types";
 
 export function useCampaigns() {
   return useQuery<Campaign[]>({
@@ -48,5 +48,12 @@ export function useDeleteCampaign() {
   return useMutation({
     mutationFn: (id: string) => api.deleteCampaign(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+}
+
+export function useUsers() {
+  return useQuery<User[]>({
+    queryKey: ["users"],
+    queryFn: api.listUsers,
   });
 }

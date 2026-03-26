@@ -1,6 +1,7 @@
 "use client";
 
-import type { Task } from "@/lib/types";
+import type { Task, User } from "@/lib/types";
+import Image from "next/image";
 import { Circle, CircleDot, CheckCircle2, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -13,11 +14,37 @@ const statusConfig = {
 
 interface TaskItemProps {
   task: Task;
+  users?: User[];
   onSelect: (task: Task) => void;
   onStatusChange: (taskId: string, status: Task["status"]) => void;
 }
 
-export function TaskItem({ task, onSelect, onStatusChange }: TaskItemProps) {
+function AvatarBadge({ user }: { user: User }) {
+  const initial = user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "?";
+  if (user.avatar_url) {
+    return (
+      <Image
+        src={user.avatar_url}
+        alt={user.name}
+        title={user.name}
+        width={20}
+        height={20}
+        className="rounded-full object-cover"
+        unoptimized
+      />
+    );
+  }
+  return (
+    <span
+      title={user.name}
+      className="flex h-5 w-5 items-center justify-center rounded-full bg-accent/20 text-[10px] font-medium text-accent"
+    >
+      {initial}
+    </span>
+  );
+}
+
+export function TaskItem({ task, users, onSelect, onStatusChange }: TaskItemProps) {
   const { icon: StatusIcon, color } = statusConfig[task.status];
   const {
     attributes,
@@ -47,6 +74,8 @@ export function TaskItem({ task, onSelect, onStatusChange }: TaskItemProps) {
     onStatusChange(task.id, next[task.status]);
   };
 
+  const assignee = task.assigned_to && users ? users.find((u) => u.id === task.assigned_to) : undefined;
+
   return (
     <div
       ref={setNodeRef}
@@ -68,6 +97,7 @@ export function TaskItem({ task, onSelect, onStatusChange }: TaskItemProps) {
       <span className={`flex-1 text-sm ${task.status === "done" ? "text-text-muted line-through" : "text-text-primary"}`}>
         {task.name}
       </span>
+      {assignee && <AvatarBadge user={assignee} />}
       {task.due_date && (
         <span className="text-xs text-text-muted">
           {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}

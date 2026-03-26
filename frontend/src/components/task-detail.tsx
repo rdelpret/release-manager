@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { updateTask, deleteTask, createSubtask } from "@/lib/api";
 import { toast } from "sonner";
 import { RichTextEditor } from "./rich-text-editor";
+import { useUsers } from "@/hooks/use-campaign";
 
 const statusOptions = [
   { value: "todo", label: "To Do", color: "text-text-muted" },
@@ -25,6 +26,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
   const [name, setName] = useState(task.name);
   const [dueDate, setDueDate] = useState(task.due_date ?? "");
   const [newSubtaskName, setNewSubtaskName] = useState("");
+  const { data: users } = useUsers();
 
   const handleNameBlur = async () => {
     if (name !== task.name && name.trim()) {
@@ -50,6 +52,15 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
     setDueDate(date);
     try {
       await updateTask(task.id, { due_date: date || undefined } as any);
+      onUpdate();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleAssign = async (userId: string) => {
+    try {
+      await updateTask(task.id, { assigned_to: userId || undefined } as any);
       onUpdate();
     } catch (err: any) {
       toast.error(err.message);
@@ -112,6 +123,25 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Assignee */}
+      <div className="mb-5">
+        <label className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 block">
+          Assigned To
+        </label>
+        <select
+          value={task.assigned_to ?? ""}
+          onChange={(e) => handleAssign(e.target.value)}
+          className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
+        >
+          <option value="">Unassigned</option>
+          {(users ?? []).map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Due date */}

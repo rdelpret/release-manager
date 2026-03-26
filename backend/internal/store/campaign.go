@@ -118,9 +118,22 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at
+		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
+			COALESCE(stats.total, 0),
+			COALESCE(stats.done, 0),
+			COALESCE(stats.overdue, 0)
 		FROM campaigns c
 		JOIN campaign_members cm ON cm.campaign_id = c.id
+		LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*)::int AS total,
+				COUNT(*) FILTER (WHERE t.status = 'done')::int AS done,
+				COUNT(*) FILTER (WHERE t.status != 'done' AND t.due_date < CURRENT_DATE)::int AS overdue
+			FROM tasks t
+			JOIN task_groups tg ON tg.id = t.task_group_id
+			JOIN task_lists tl ON tl.id = tg.task_list_id
+			WHERE tl.campaign_id = c.id
+		) stats ON true
 		WHERE cm.user_id = $1
 		ORDER BY c.updated_at DESC
 	`, userID)
@@ -132,7 +145,9 @@ func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campa
 	var campaigns []model.Campaign
 	for rows.Next() {
 		var c model.Campaign
-		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.TemplateType, &c.ReleaseDate, &c.ScheduleWeeks, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.TemplateType,
+			&c.ReleaseDate, &c.ScheduleWeeks, &c.CreatedAt, &c.UpdatedAt,
+			&c.TotalTasks, &c.DoneTasks, &c.OverdueTasks); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -147,7 +162,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 			c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
 			tl.id, tl.campaign_id, tl.name, tl.color, tl.position,
 			tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed,
-			t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.position, t.created_at, t.updated_at,
+			t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at,
 			st.id, st.task_id, st.name, st.is_complete, st.position
 		FROM campaigns c
 		LEFT JOIN task_lists tl ON tl.campaign_id = c.id
@@ -182,7 +197,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 			tgCollapsed                                *bool
 			tID, tTaskGroupID, tName                   *string
 			tDescription                               *json.RawMessage
-			tStatus, tDueDate                          *string
+			tStatus, tDueDate, tAssignedTo             *string
 			tPosition                                  *int
 			tCreatedAt, tUpdatedAt                     *time.Time
 			stID, stTaskID, stName                     *string
@@ -194,7 +209,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 			&cID, &cCreatedBy, &cName, &cArchived, &cTemplateType, &cReleaseDate, &cScheduleWeeks, &cCreatedAt, &cUpdatedAt,
 			&tlID, &tlCampaignID, &tlName, &tlColor, &tlPosition,
 			&tgID, &tgTaskListID, &tgName, &tgPosition, &tgCollapsed,
-			&tID, &tTaskGroupID, &tName, &tDescription, &tStatus, &tDueDate, &tPosition, &tCreatedAt, &tUpdatedAt,
+			&tID, &tTaskGroupID, &tName, &tDescription, &tStatus, &tDueDate, &tAssignedTo, &tPosition, &tCreatedAt, &tUpdatedAt,
 			&stID, &stTaskID, &stName, &stIsComplete, &stPosition,
 		)
 		if err != nil {
@@ -241,7 +256,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 				gi := groupMap[*tgID]
 				task := model.Task{
 					ID: *tID, TaskGroupID: *tTaskGroupID, Name: *tName, Description: tDescription,
-					Status: *tStatus, Position: *tPosition,
+					Status: *tStatus, AssignedTo: tAssignedTo, Position: *tPosition,
 				}
 				if tDueDate != nil {
 					task.DueDate = tDueDate

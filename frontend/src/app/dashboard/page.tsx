@@ -35,7 +35,13 @@ export default function DashboardPage() {
     );
   }
 
-  const activeCampaigns = campaigns?.filter((c) => !c.archived) ?? [];
+  const activeCampaigns = (campaigns?.filter((c) => !c.archived) ?? []).sort((a, b) => {
+    // Sort by release date (soonest first), campaigns without a date go last
+    if (a.release_date && b.release_date) return a.release_date.localeCompare(b.release_date);
+    if (a.release_date) return -1;
+    if (b.release_date) return 1;
+    return 0;
+  });
   const archivedCampaigns = campaigns?.filter((c) => c.archived) ?? [];
 
   const handleCreate = () => {
