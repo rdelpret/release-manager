@@ -36,7 +36,7 @@ func TestCreateCampaign(t *testing.T) {
 	s := setupTestStore(t)
 	user := createTestUser(t, s)
 
-	campaign, err := s.CreateCampaign(context.Background(), user.ID, "Test Release")
+	campaign, err := s.CreateCampaign(context.Background(), user.ID, "Test Release", nil, "single")
 	if err != nil {
 		t.Fatalf("failed to create campaign: %v", err)
 	}
@@ -54,8 +54,8 @@ func TestListCampaigns(t *testing.T) {
 	s := setupTestStore(t)
 	user := createTestUser(t, s)
 
-	c1, _ := s.CreateCampaign(context.Background(), user.ID, "Campaign 1")
-	c2, _ := s.CreateCampaign(context.Background(), user.ID, "Campaign 2")
+	c1, _ := s.CreateCampaign(context.Background(), user.ID, "Campaign 1", nil, "single")
+	c2, _ := s.CreateCampaign(context.Background(), user.ID, "Campaign 2", nil, "single")
 	defer s.DeleteCampaign(context.Background(), c1.ID)
 	defer s.DeleteCampaign(context.Background(), c2.ID)
 
@@ -72,7 +72,7 @@ func TestGetFullCampaign(t *testing.T) {
 	s := setupTestStore(t)
 	user := createTestUser(t, s)
 
-	campaign, _ := s.CreateCampaign(context.Background(), user.ID, "Full Test")
+	campaign, _ := s.CreateCampaign(context.Background(), user.ID, "Full Test", nil, "single")
 	defer s.DeleteCampaign(context.Background(), campaign.ID)
 
 	full, err := s.GetFullCampaign(context.Background(), campaign.ID)

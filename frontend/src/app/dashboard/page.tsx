@@ -6,9 +6,10 @@ import { useEffect, useState } from "react";
 import { useCampaigns, useCreateCampaign } from "@/hooks/use-campaign";
 import { CampaignCard } from "@/components/campaign-card";
 import { Button } from "@/components/ui/button";
-import { Plus, LogOut } from "lucide-react";
+import { Plus, LogOut, Music, CloudUpload, Disc3 } from "lucide-react";
 import { logout } from "@/lib/api";
 import { toast } from "sonner";
+import type { TemplateType } from "@/lib/types";
 
 export default function DashboardPage() {
   const { email, loading } = useAuth();
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const createCampaign = useCreateCampaign();
   const [newName, setNewName] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
+  const [templateType, setTemplateType] = useState<TemplateType>("single");
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
@@ -39,11 +41,12 @@ export default function DashboardPage() {
   const handleCreate = () => {
     if (!newName.trim()) return;
     createCampaign.mutate(
-      { name: newName.trim(), releaseDate: releaseDate || undefined },
+      { name: newName.trim(), releaseDate: releaseDate || undefined, templateType },
       {
         onSuccess: () => {
           setNewName("");
           setReleaseDate("");
+          setTemplateType("single");
           setShowCreate(false);
           toast.success("Campaign created");
         },
@@ -80,6 +83,28 @@ export default function DashboardPage() {
 
       {showCreate && (
         <div className="mb-6 bg-bg-surface p-4 rounded-xl space-y-3">
+          {/* Template picker */}
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { type: "single" as TemplateType, label: "Single", desc: "Standard release (8 weeks)", icon: Music },
+              { type: "soundcloud_flip" as TemplateType, label: "SoundCloud Flip", desc: "Social-only, no DSPs (4 weeks)", icon: CloudUpload },
+              { type: "lp_ep" as TemplateType, label: "LP / EP", desc: "Multi-track + merch (10-12 weeks)", icon: Disc3 },
+            ]).map(({ type, label, desc, icon: Icon }) => (
+              <button
+                key={type}
+                onClick={() => setTemplateType(type)}
+                className={`flex flex-col items-center gap-1.5 rounded-lg border p-3 text-center transition-smooth ${
+                  templateType === type
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-text-muted hover:border-text-muted hover:text-text-primary"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-sm font-medium">{label}</span>
+                <span className="text-[10px] leading-tight opacity-70">{desc}</span>
+              </button>
+            ))}
+          </div>
           <div className="flex gap-3 items-center">
             <input
               autoFocus

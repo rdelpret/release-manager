@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rdelpret/music-release-planner/backend/internal/auth"
 	"github.com/rdelpret/music-release-planner/backend/internal/model"
+	"github.com/rdelpret/music-release-planner/backend/internal/template"
 )
 
 func (s *Server) handleListCampaigns(w http.ResponseWriter, r *http.Request) {
@@ -26,8 +27,9 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 	userID := auth.GetUserID(r)
 
 	var req struct {
-		Name        string  `json:"name"`
-		ReleaseDate *string `json:"release_date,omitempty"`
+		Name         string  `json:"name"`
+		ReleaseDate  *string `json:"release_date,omitempty"`
+		TemplateType string  `json:"template_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid request body")
@@ -37,8 +39,15 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Name is required")
 		return
 	}
+	if req.TemplateType == "" {
+		req.TemplateType = template.TypeSingle
+	}
+	if !template.ValidTemplateType(req.TemplateType) {
+		writeError(w, http.StatusBadRequest, "Invalid template_type (must be single, soundcloud_flip, or lp_ep)")
+		return
+	}
 
-	campaign, err := s.store.CreateCampaign(r.Context(), userID, req.Name, req.ReleaseDate)
+	campaign, err := s.store.CreateCampaign(r.Context(), userID, req.Name, req.ReleaseDate, req.TemplateType)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to create campaign")
 		return

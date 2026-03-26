@@ -6,11 +6,14 @@ export interface User {
   created_at: string;
 }
 
+export type TemplateType = "single" | "soundcloud_flip" | "lp_ep";
+
 export interface Campaign {
   id: string;
   created_by: string;
   name: string;
   archived: boolean;
+  template_type: TemplateType;
   release_date?: string;
   schedule_weeks: number;
   created_at: string;

@@ -23,7 +23,48 @@ type TemplateTask struct {
 
 func days(n int) *int { return &n }
 
-// DefaultTemplate returns the 5 pre-loaded task lists for a new campaign.
+// Valid template types
+const (
+	TypeSingle        = "single"
+	TypeSoundCloudFlip = "soundcloud_flip"
+	TypeLPEP          = "lp_ep"
+)
+
+// ValidTemplateType returns true if the given type is a known template.
+func ValidTemplateType(t string) bool {
+	switch t {
+	case TypeSingle, TypeSoundCloudFlip, TypeLPEP:
+		return true
+	}
+	return false
+}
+
+// GetTemplate returns the task lists for the given template type.
+// Falls back to Single if type is unknown.
+func GetTemplate(templateType string) []TemplateList {
+	switch templateType {
+	case TypeSoundCloudFlip:
+		return SoundCloudFlipTemplate()
+	case TypeLPEP:
+		return LPEPTemplate()
+	default:
+		return DefaultTemplate()
+	}
+}
+
+// DefaultScheduleWeeks returns the default schedule duration for the template type.
+func DefaultScheduleWeeks(templateType string) int {
+	switch templateType {
+	case TypeSoundCloudFlip:
+		return 4
+	case TypeLPEP:
+		return 8
+	default:
+		return 8
+	}
+}
+
+// DefaultTemplate returns the 5 pre-loaded task lists for a Single release campaign.
 // Tasks have DaysOffset relative to the release date (8-week campaign timeline).
 func DefaultTemplate() []TemplateList {
 	return []TemplateList{

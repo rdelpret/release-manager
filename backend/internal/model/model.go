@@ -18,6 +18,7 @@ type Campaign struct {
 	CreatedBy     string     `json:"created_by"`
 	Name          string     `json:"name"`
 	Archived      bool       `json:"archived"`
+	TemplateType  string     `json:"template_type"`
 	ReleaseDate   *string    `json:"release_date,omitempty"`
 	ScheduleWeeks int        `json:"schedule_weeks"`
 	CreatedAt     time.Time  `json:"created_at"`

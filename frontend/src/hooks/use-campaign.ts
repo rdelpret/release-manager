@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "@/lib/api";
-import type { Campaign } from "@/lib/types";
+import type { Campaign, TemplateType } from "@/lib/types";
 
 export function useCampaigns() {
   return useQuery<Campaign[]>({
@@ -20,8 +20,8 @@ export function useCampaign(id: string) {
 export function useCreateCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, releaseDate }: { name: string; releaseDate?: string }) =>
-      api.createCampaign(name, releaseDate),
+    mutationFn: ({ name, releaseDate, templateType }: { name: string; releaseDate?: string; templateType?: TemplateType }) =>
+      api.createCampaign(name, releaseDate, templateType),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
   });
 }

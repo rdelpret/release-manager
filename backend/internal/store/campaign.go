@@ -78,20 +78,22 @@ func (s *Store) IsCampaignMemberViaList(ctx context.Context, listID, userID stri
 	return exists, err
 }
 
-func (s *Store) CreateCampaign(ctx context.Context, userID, name string, releaseDate *string) (*model.Campaign, error) {
+func (s *Store) CreateCampaign(ctx context.Context, userID, name string, releaseDate *string, templateType string) (*model.Campaign, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
 
+	scheduleWeeks := template.DefaultScheduleWeeks(templateType)
+
 	var campaign model.Campaign
 	err = tx.QueryRow(ctx, `
-		INSERT INTO campaigns (created_by, name, release_date, schedule_weeks)
-		VALUES ($1, $2, $3, COALESCE($4, 8))
-		RETURNING id, created_by, name, archived, release_date, schedule_weeks, created_at, updated_at
-	`, userID, name, releaseDate, 8).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
-		&campaign.Archived, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
+		INSERT INTO campaigns (created_by, name, template_type, release_date, schedule_weeks)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+	`, userID, name, templateType, releaseDate, scheduleWeeks).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
+		&campaign.Archived, &campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +106,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 		return nil, err
 	}
 
-	if err := s.populateTemplate(ctx, tx, campaign.ID, releaseDate); err != nil {
+	if err := s.populateTemplate(ctx, tx, campaign.ID, templateType, releaseDate); err != nil {
 		return nil, err
 	}
 
@@ -116,7 +118,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.created_by, c.name, c.archived, c.release_date, c.schedule_weeks, c.created_at, c.updated_at
+		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at
 		FROM campaigns c
 		JOIN campaign_members cm ON cm.campaign_id = c.id
 		WHERE cm.user_id = $1
@@ -130,7 +132,7 @@ func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campa
 	var campaigns []model.Campaign
 	for rows.Next() {
 		var c model.Campaign
-		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.ReleaseDate, &c.ScheduleWeeks, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.CreatedBy, &c.Name, &c.Archived, &c.TemplateType, &c.ReleaseDate, &c.ScheduleWeeks, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			return nil, err
 		}
 		campaigns = append(campaigns, c)
@@ -142,7 +144,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	// Single query with JOINs to avoid N+1 round trips to the database
 	rows, err := s.pool.Query(ctx, `
 		SELECT
-			c.id, c.created_by, c.name, c.archived, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
+			c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
 			tl.id, tl.campaign_id, tl.name, tl.color, tl.position,
 			tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed,
 			t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.position, t.created_at, t.updated_at,
@@ -168,7 +170,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 
 	for rows.Next() {
 		var (
-			cID, cCreatedBy, cName                     string
+			cID, cCreatedBy, cName, cTemplateType      string
 			cArchived                                  bool
 			cReleaseDate                               *string
 			cScheduleWeeks                             int
@@ -189,7 +191,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		)
 
 		err := rows.Scan(
-			&cID, &cCreatedBy, &cName, &cArchived, &cReleaseDate, &cScheduleWeeks, &cCreatedAt, &cUpdatedAt,
+			&cID, &cCreatedBy, &cName, &cArchived, &cTemplateType, &cReleaseDate, &cScheduleWeeks, &cCreatedAt, &cUpdatedAt,
 			&tlID, &tlCampaignID, &tlName, &tlColor, &tlPosition,
 			&tgID, &tgTaskListID, &tgName, &tgPosition, &tgCollapsed,
 			&tID, &tTaskGroupID, &tName, &tDescription, &tStatus, &tDueDate, &tPosition, &tCreatedAt, &tUpdatedAt,
@@ -202,7 +204,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		if campaign == nil {
 			campaign = &model.Campaign{
 				ID: cID, CreatedBy: cCreatedBy, Name: cName, Archived: cArchived,
-				ReleaseDate: cReleaseDate, ScheduleWeeks: cScheduleWeeks,
+				TemplateType: cTemplateType, ReleaseDate: cReleaseDate, ScheduleWeeks: cScheduleWeeks,
 				CreatedAt: cCreatedAt, UpdatedAt: cUpdatedAt,
 			}
 		}
@@ -299,6 +301,13 @@ func (s *Store) SetReleaseDate(ctx context.Context, campaignID, releaseDate stri
 	}
 	defer tx.Rollback(ctx)
 
+	// Get the campaign's template type
+	var templateType string
+	err = tx.QueryRow(ctx, `SELECT template_type FROM campaigns WHERE id = $1`, campaignID).Scan(&templateType)
+	if err != nil {
+		return fmt.Errorf("fetching campaign template type: %w", err)
+	}
+
 	// Update campaign
 	_, err = tx.Exec(ctx, `
 		UPDATE campaigns SET release_date = $2, schedule_weeks = $3, updated_at = now()
@@ -320,8 +329,8 @@ func (s *Store) SetReleaseDate(ctx context.Context, campaignID, releaseDate stri
 		scale = 0.5
 	}
 
-	// Recalculate due dates for all tasks using the template offsets
-	tmpl := template.DefaultTemplate()
+	// Recalculate due dates for all tasks using the correct template offsets
+	tmpl := template.GetTemplate(templateType)
 	for _, list := range tmpl {
 		for _, group := range list.Groups {
 			for _, task := range group.Tasks {
@@ -365,19 +374,19 @@ func (s *Store) DuplicateCampaign(ctx context.Context, sourceCampaignID, userID 
 	}
 	defer tx.Rollback(ctx)
 
-	var sourceName string
-	err = tx.QueryRow(ctx, `SELECT name FROM campaigns WHERE id = $1`, sourceCampaignID).Scan(&sourceName)
+	var sourceName, sourceTemplateType string
+	err = tx.QueryRow(ctx, `SELECT name, template_type FROM campaigns WHERE id = $1`, sourceCampaignID).Scan(&sourceName, &sourceTemplateType)
 	if err != nil {
 		return nil, err
 	}
 
 	var campaign model.Campaign
 	err = tx.QueryRow(ctx, `
-		INSERT INTO campaigns (created_by, name)
-		VALUES ($1, $2)
-		RETURNING id, created_by, name, archived, release_date, schedule_weeks, created_at, updated_at
-	`, userID, sourceName+" (Copy)").Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
-		&campaign.Archived, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
+		INSERT INTO campaigns (created_by, name, template_type)
+		VALUES ($1, $2, $3)
+		RETURNING id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+	`, userID, sourceName+" (Copy)", sourceTemplateType).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
+		&campaign.Archived, &campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -533,8 +542,8 @@ func (s *Store) duplicateTasksForGroup(ctx context.Context, tx pgx.Tx, oldGroupI
 	return nil
 }
 
-func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID string, releaseDate *string) error {
-	tmpl := template.DefaultTemplate()
+func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID, templateType string, releaseDate *string) error {
+	tmpl := template.GetTemplate(templateType)
 
 	// Parse release date if provided
 	var relDate *time.Time
