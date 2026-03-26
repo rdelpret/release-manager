@@ -32,6 +32,7 @@ func (s *Server) routes() chi.Router {
 		r.Use(bodySizeLimit(1 << 20)) // 1 MB max request body (#6)
 
 		r.Get("/me", auth.HandleMe)
+		r.Get("/users", s.handleListUsers)
 
 		// Campaigns
 		r.Get("/campaigns", s.handleListCampaigns)

@@ -1,4 +1,4 @@
-import type { Campaign, Task, Subtask, TemplateType } from "./types";
+import type { Campaign, Task, Subtask, TemplateType, User } from "./types";
 
 // In dev, Next.js rewrites proxy /api/* to Go backend.
 // In production, Cloudflare Worker proxies /api/* to the container.
@@ -20,6 +20,9 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
 // Auth
 export const getMe = () => fetchJSON<{ email: string; user_id: string }>("/api/me");
 export const logout = () => fetchJSON<void>("/auth/logout", { method: "POST" });
+
+// Users
+export const listUsers = () => fetchJSON<User[]>("/api/users");
 
 // Campaigns
 export const listCampaigns = () => fetchJSON<Campaign[]>("/api/campaigns");

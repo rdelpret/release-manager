@@ -2,11 +2,11 @@
 
 import { useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useCampaign } from "@/hooks/use-campaign";
+import { useCampaign, useUsers } from "@/hooks/use-campaign";
 import { TaskListTabs } from "@/components/task-list-tabs";
 import { TaskGroup } from "@/components/task-group";
 import { HideDoneToggle } from "@/components/hide-done-toggle";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { ArrowLeft, Calendar, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { updateTask, setReleaseDate } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -15,6 +15,7 @@ import type { Task } from "@/lib/types";
 import { TaskDetail } from "@/components/task-detail";
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { useTaskDragDrop } from "@/hooks/use-drag-drop";
+import { CampaignOverview } from "@/components/campaign-overview";
 
 export function CampaignBoard() {
   const router = useRouter();
@@ -31,9 +32,11 @@ export function CampaignBoard() {
     return "";
   }, [params?.id]);
   const { data: campaign, isLoading } = useCampaign(id);
+  const { data: users } = useUsers();
   const queryClient = useQueryClient();
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [hideDone, setHideDone] = useState(false);
+  const [showOverview, setShowOverview] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const { handleDragEnd } = useTaskDragDrop(id);
 
@@ -78,7 +81,16 @@ export function CampaignBoard() {
           <h1 className="text-2xl font-heading font-bold text-text-primary">{campaign.name}</h1>
         </div>
         <div className="flex items-center gap-3">
-          <HideDoneToggle hidden={hideDone} onToggle={() => setHideDone(!hideDone)} />
+          {!showOverview && <HideDoneToggle hidden={hideDone} onToggle={() => setHideDone(!hideDone)} />}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowOverview(!showOverview)}
+            className={showOverview ? "bg-accent/10 text-accent" : ""}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Overview
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -144,31 +156,38 @@ export function CampaignBoard() {
         )}
       </div>
 
-      {/* Tabs */}
-      {lists.length > 0 && (
-        <TaskListTabs
-          lists={lists}
-          activeId={activeList?.id ?? ""}
-          onSelect={setActiveListId}
-        />
-      )}
+      {showOverview ? (
+        <CampaignOverview campaign={campaign} users={users} />
+      ) : (
+        <>
+          {/* Tabs */}
+          {lists.length > 0 && (
+            <TaskListTabs
+              lists={lists}
+              activeId={activeList?.id ?? ""}
+              onSelect={setActiveListId}
+            />
+          )}
 
-      {/* Active list content */}
-      {activeList && (
-        <div className="mt-4 bg-bg-surface rounded-xl p-5">
-          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            {(activeList.task_groups ?? []).map((group) => (
-              <TaskGroup
-                key={group.id}
-                group={group}
-                campaignId={id}
-                hideDone={hideDone}
-                onSelectTask={setSelectedTask}
-                onStatusChange={handleStatusChange}
-              />
-            ))}
-          </DndContext>
-        </div>
+          {/* Active list content */}
+          {activeList && (
+            <div className="mt-4 bg-bg-surface rounded-xl p-5">
+              <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                {(activeList.task_groups ?? []).map((group) => (
+                  <TaskGroup
+                    key={group.id}
+                    group={group}
+                    campaignId={id}
+                    hideDone={hideDone}
+                    users={users}
+                    onSelectTask={setSelectedTask}
+                    onStatusChange={handleStatusChange}
+                  />
+                ))}
+              </DndContext>
+            </div>
+          )}
+        </>
       )}
 
       {selectedTask && (

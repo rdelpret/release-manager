@@ -13,6 +13,7 @@ type TaskUpdate struct {
 	Description *json.RawMessage `json:"description,omitempty"`
 	Status      *string          `json:"status,omitempty"`
 	DueDate     *string          `json:"due_date,omitempty"`
+	AssignedTo  *string          `json:"assigned_to,omitempty"`
 }
 
 func (s *Store) CreateTask(ctx context.Context, groupID, name string) (*model.Task, error) {
@@ -30,9 +31,9 @@ func (s *Store) CreateTask(ctx context.Context, groupID, name string) (*model.Ta
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO tasks (task_group_id, name, position)
 		VALUES ($1, $2, $3)
-		RETURNING id, task_group_id, name, description, status, due_date, position, created_at, updated_at
+		RETURNING id, task_group_id, name, description, status, due_date, assigned_to, position, created_at, updated_at
 	`, groupID, name, nextPos).Scan(&task.ID, &task.TaskGroupID, &task.Name, &task.Description,
-		&task.Status, &task.DueDate, &task.Position, &task.CreatedAt, &task.UpdatedAt)
+		&task.Status, &task.DueDate, &task.AssignedTo, &task.Position, &task.CreatedAt, &task.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +69,15 @@ func (s *Store) UpdateTask(ctx context.Context, taskID string, updates TaskUpdat
 			argN++
 		}
 	}
+	if updates.AssignedTo != nil {
+		if *updates.AssignedTo == "" {
+			setClauses = append(setClauses, "assigned_to = NULL")
+		} else {
+			setClauses = append(setClauses, "assigned_to = $"+strconv.Itoa(argN))
+			args = append(args, *updates.AssignedTo)
+			argN++
+		}
+	}
 
 	args = append(args, taskID)
 
@@ -79,11 +89,11 @@ func (s *Store) UpdateTask(ctx context.Context, taskID string, updates TaskUpdat
 		query += clause
 	}
 	query += " WHERE id = $" + strconv.Itoa(argN)
-	query += " RETURNING id, task_group_id, name, description, status, due_date, position, created_at, updated_at"
+	query += " RETURNING id, task_group_id, name, description, status, due_date, assigned_to, position, created_at, updated_at"
 
 	var task model.Task
 	err := s.pool.QueryRow(ctx, query, args...).Scan(&task.ID, &task.TaskGroupID, &task.Name,
-		&task.Description, &task.Status, &task.DueDate, &task.Position, &task.CreatedAt, &task.UpdatedAt)
+		&task.Description, &task.Status, &task.DueDate, &task.AssignedTo, &task.Position, &task.CreatedAt, &task.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +187,7 @@ func (s *Store) getSubtask(ctx context.Context, subtaskID string) (*model.Subtas
 
 func (s *Store) GetTasksByDueDate(ctx context.Context, campaignID string) ([]model.Task, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.position, t.created_at, t.updated_at
+		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at
 		FROM tasks t
 		JOIN task_groups tg ON tg.id = t.task_group_id
 		JOIN task_lists tl ON tl.id = tg.task_list_id
@@ -193,10 +203,29 @@ func (s *Store) GetTasksByDueDate(ctx context.Context, campaignID string) ([]mod
 	for rows.Next() {
 		var t model.Task
 		if err := rows.Scan(&t.ID, &t.TaskGroupID, &t.Name, &t.Description, &t.Status,
-			&t.DueDate, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			&t.DueDate, &t.AssignedTo, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, t)
 	}
 	return tasks, rows.Err()
+}
+
+// ListUsers returns all users (for the assignee picker).
+func (s *Store) ListUsers(ctx context.Context) ([]model.User, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, email, name, avatar_url, created_at FROM users ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.Name, &u.AvatarURL, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }
