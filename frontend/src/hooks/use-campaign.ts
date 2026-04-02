@@ -6,6 +6,7 @@ export function useCampaigns() {
   return useQuery<Campaign[]>({
     queryKey: ["campaigns"],
     queryFn: api.listCampaigns,
+    staleTime: 30_000,
   });
 }
 

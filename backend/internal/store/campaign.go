@@ -118,22 +118,23 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
+		WITH campaign_stats AS (
+			SELECT tl.campaign_id,
+				COUNT(t.id)::int AS total,
+				COUNT(t.id) FILTER (WHERE t.status = 'done')::int AS done,
+				COUNT(t.id) FILTER (WHERE t.status != 'done' AND t.due_date < CURRENT_DATE)::int AS overdue
+			FROM task_lists tl
+			JOIN task_groups tg ON tg.task_list_id = tl.id
+			JOIN tasks t ON t.task_group_id = tg.id
+			GROUP BY tl.campaign_id
+		)
 		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
-			COALESCE(stats.total, 0),
-			COALESCE(stats.done, 0),
-			COALESCE(stats.overdue, 0)
+			COALESCE(cs.total, 0),
+			COALESCE(cs.done, 0),
+			COALESCE(cs.overdue, 0)
 		FROM campaigns c
 		JOIN campaign_members cm ON cm.campaign_id = c.id
-		LEFT JOIN LATERAL (
-			SELECT
-				COUNT(*)::int AS total,
-				COUNT(*) FILTER (WHERE t.status = 'done')::int AS done,
-				COUNT(*) FILTER (WHERE t.status != 'done' AND t.due_date < CURRENT_DATE)::int AS overdue
-			FROM tasks t
-			JOIN task_groups tg ON tg.id = t.task_group_id
-			JOIN task_lists tl ON tl.id = tg.task_list_id
-			WHERE tl.campaign_id = c.id
-		) stats ON true
+		LEFT JOIN campaign_stats cs ON cs.campaign_id = c.id
 		WHERE cm.user_id = $1
 		ORDER BY c.updated_at DESC
 	`, userID)
