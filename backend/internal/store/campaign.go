@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -118,23 +117,22 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
-		WITH campaign_stats AS (
-			SELECT tl.campaign_id,
-				COUNT(t.id)::int AS total,
-				COUNT(t.id) FILTER (WHERE t.status = 'done')::int AS done,
-				COUNT(t.id) FILTER (WHERE t.status != 'done' AND t.due_date < CURRENT_DATE)::int AS overdue
-			FROM task_lists tl
-			JOIN task_groups tg ON tg.task_list_id = tl.id
-			JOIN tasks t ON t.task_group_id = tg.id
-			GROUP BY tl.campaign_id
-		)
 		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
 			COALESCE(cs.total, 0),
 			COALESCE(cs.done, 0),
 			COALESCE(cs.overdue, 0)
 		FROM campaigns c
 		JOIN campaign_members cm ON cm.campaign_id = c.id
-		LEFT JOIN campaign_stats cs ON cs.campaign_id = c.id
+		LEFT JOIN LATERAL (
+			SELECT
+				COUNT(t.id)::int AS total,
+				COUNT(t.id) FILTER (WHERE t.status = 'done')::int AS done,
+				COUNT(t.id) FILTER (WHERE t.status != 'done' AND t.due_date < CURRENT_DATE)::int AS overdue
+			FROM task_lists tl
+			JOIN task_groups tg ON tg.task_list_id = tl.id
+			JOIN tasks t ON t.task_group_id = tg.id
+			WHERE tl.campaign_id = c.id
+		) cs ON true
 		WHERE cm.user_id = $1
 		ORDER BY c.updated_at DESC
 	`, userID)
@@ -157,148 +155,148 @@ func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campa
 }
 
 func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.Campaign, error) {
-	// Single query with JOINs to avoid N+1 round trips to the database
-	rows, err := s.pool.Query(ctx, `
-		SELECT
-			c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
-			tl.id, tl.campaign_id, tl.name, tl.color, tl.position,
-			tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed,
-			t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at,
-			st.id, st.task_id, st.name, st.is_complete, st.position
-		FROM campaigns c
-		LEFT JOIN task_lists tl ON tl.campaign_id = c.id
-		LEFT JOIN task_groups tg ON tg.task_list_id = tl.id
-		LEFT JOIN tasks t ON t.task_group_id = tg.id
-		LEFT JOIN subtasks st ON st.task_id = t.id
-		WHERE c.id = $1
-		ORDER BY tl.position, tg.position, t.position, st.position
+	// Fetch campaign
+	var campaign model.Campaign
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+		FROM campaigns WHERE id = $1
+	`, campaignID).Scan(
+		&campaign.ID, &campaign.CreatedBy, &campaign.Name, &campaign.Archived,
+		&campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks,
+		&campaign.CreatedAt, &campaign.UpdatedAt,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, fmt.Errorf("campaign not found")
+		}
+		return nil, err
+	}
+
+	// Fetch task lists
+	listRows, err := s.pool.Query(ctx, `
+		SELECT id, campaign_id, name, color, position
+		FROM task_lists WHERE campaign_id = $1 ORDER BY position
 	`, campaignID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer listRows.Close()
 
-	var campaign *model.Campaign
-	listMap := map[string]int{}    // list ID -> index in campaign.TaskLists
-	groupMap := map[string]int{}   // group ID -> index in its parent list's TaskGroups
-	taskMap := map[string]int{}    // task ID -> index in its parent group's Tasks
-	subtaskSeen := map[string]bool{}
-
-	for rows.Next() {
-		var (
-			cID, cCreatedBy, cName, cTemplateType      string
-			cArchived                                  bool
-			cReleaseDate                               *string
-			cScheduleWeeks                             int
-			cCreatedAt, cUpdatedAt                     time.Time
-			tlID, tlCampaignID, tlName, tlColor        *string
-			tlPosition                                 *int
-			tgID, tgTaskListID, tgName                 *string
-			tgPosition                                 *int
-			tgCollapsed                                *bool
-			tID, tTaskGroupID, tName                   *string
-			tDescription                               *json.RawMessage
-			tStatus, tDueDate, tAssignedTo             *string
-			tPosition                                  *int
-			tCreatedAt, tUpdatedAt                     *time.Time
-			stID, stTaskID, stName                     *string
-			stIsComplete                               *bool
-			stPosition                                 *int
-		)
-
-		err := rows.Scan(
-			&cID, &cCreatedBy, &cName, &cArchived, &cTemplateType, &cReleaseDate, &cScheduleWeeks, &cCreatedAt, &cUpdatedAt,
-			&tlID, &tlCampaignID, &tlName, &tlColor, &tlPosition,
-			&tgID, &tgTaskListID, &tgName, &tgPosition, &tgCollapsed,
-			&tID, &tTaskGroupID, &tName, &tDescription, &tStatus, &tDueDate, &tAssignedTo, &tPosition, &tCreatedAt, &tUpdatedAt,
-			&stID, &stTaskID, &stName, &stIsComplete, &stPosition,
-		)
-		if err != nil {
+	listMap := map[string]int{} // list ID -> index
+	for listRows.Next() {
+		var tl model.TaskList
+		if err := listRows.Scan(&tl.ID, &tl.CampaignID, &tl.Name, &tl.Color, &tl.Position); err != nil {
 			return nil, err
 		}
-
-		if campaign == nil {
-			campaign = &model.Campaign{
-				ID: cID, CreatedBy: cCreatedBy, Name: cName, Archived: cArchived,
-				TemplateType: cTemplateType, ReleaseDate: cReleaseDate, ScheduleWeeks: cScheduleWeeks,
-				CreatedAt: cCreatedAt, UpdatedAt: cUpdatedAt,
-			}
-		}
-
-		// Task list
-		if tlID != nil {
-			if _, ok := listMap[*tlID]; !ok {
-				listMap[*tlID] = len(campaign.TaskLists)
-				campaign.TaskLists = append(campaign.TaskLists, model.TaskList{
-					ID: *tlID, CampaignID: *tlCampaignID, Name: *tlName, Color: *tlColor, Position: *tlPosition,
-				})
-			}
-		}
-
-		// Task group
-		if tgID != nil && tlID != nil {
-			if _, ok := groupMap[*tgID]; !ok {
-				li := listMap[*tlID]
-				groupMap[*tgID] = len(campaign.TaskLists[li].TaskGroups)
-				collapsed := false
-				if tgCollapsed != nil {
-					collapsed = *tgCollapsed
-				}
-				campaign.TaskLists[li].TaskGroups = append(campaign.TaskLists[li].TaskGroups, model.TaskGroup{
-					ID: *tgID, TaskListID: *tgTaskListID, Name: *tgName, Position: *tgPosition, Collapsed: collapsed,
-				})
-			}
-		}
-
-		// Task
-		if tID != nil && tgID != nil && tlID != nil {
-			if _, ok := taskMap[*tID]; !ok {
-				li := listMap[*tlID]
-				gi := groupMap[*tgID]
-				task := model.Task{
-					ID: *tID, TaskGroupID: *tTaskGroupID, Name: *tName, Description: tDescription,
-					Status: *tStatus, AssignedTo: tAssignedTo, Position: *tPosition,
-				}
-				if tDueDate != nil {
-					task.DueDate = tDueDate
-				}
-				if tCreatedAt != nil {
-					task.CreatedAt = *tCreatedAt
-				}
-				if tUpdatedAt != nil {
-					task.UpdatedAt = *tUpdatedAt
-				}
-				taskMap[*tID] = len(campaign.TaskLists[li].TaskGroups[gi].Tasks)
-				campaign.TaskLists[li].TaskGroups[gi].Tasks = append(campaign.TaskLists[li].TaskGroups[gi].Tasks, task)
-			}
-		}
-
-		// Subtask
-		if stID != nil && tID != nil && tgID != nil && tlID != nil {
-			if !subtaskSeen[*stID] {
-				subtaskSeen[*stID] = true
-				li := listMap[*tlID]
-				gi := groupMap[*tgID]
-				ti := taskMap[*tID]
-				isComplete := false
-				if stIsComplete != nil {
-					isComplete = *stIsComplete
-				}
-				campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks = append(
-					campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks,
-					model.Subtask{ID: *stID, TaskID: *stTaskID, Name: *stName, IsComplete: isComplete, Position: *stPosition},
-				)
-			}
-		}
+		listMap[tl.ID] = len(campaign.TaskLists)
+		campaign.TaskLists = append(campaign.TaskLists, tl)
 	}
-	if err := rows.Err(); err != nil {
+	if err := listRows.Err(); err != nil {
+		return nil, err
+	}
+	listRows.Close()
+
+	if len(campaign.TaskLists) == 0 {
+		return &campaign, nil
+	}
+
+	// Fetch task groups
+	groupRows, err := s.pool.Query(ctx, `
+		SELECT tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed
+		FROM task_groups tg
+		JOIN task_lists tl ON tl.id = tg.task_list_id
+		WHERE tl.campaign_id = $1
+		ORDER BY tg.position
+	`, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer groupRows.Close()
+
+	groupMap := map[string]int{}   // group ID -> index in parent list
+	groupList := map[string]string{} // group ID -> list ID
+	for groupRows.Next() {
+		var tg model.TaskGroup
+		if err := groupRows.Scan(&tg.ID, &tg.TaskListID, &tg.Name, &tg.Position, &tg.Collapsed); err != nil {
+			return nil, err
+		}
+		li := listMap[tg.TaskListID]
+		groupMap[tg.ID] = len(campaign.TaskLists[li].TaskGroups)
+		groupList[tg.ID] = tg.TaskListID
+		campaign.TaskLists[li].TaskGroups = append(campaign.TaskLists[li].TaskGroups, tg)
+	}
+	if err := groupRows.Err(); err != nil {
+		return nil, err
+	}
+	groupRows.Close()
+
+	// Fetch tasks
+	taskRows, err := s.pool.Query(ctx, `
+		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at
+		FROM tasks t
+		JOIN task_groups tg ON tg.id = t.task_group_id
+		JOIN task_lists tl ON tl.id = tg.task_list_id
+		WHERE tl.campaign_id = $1
+		ORDER BY t.position
+	`, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer taskRows.Close()
+
+	taskMap := map[string]int{}    // task ID -> index in parent group
+	taskGroup := map[string]string{} // task ID -> group ID
+	for taskRows.Next() {
+		var t model.Task
+		if err := taskRows.Scan(&t.ID, &t.TaskGroupID, &t.Name, &t.Description, &t.Status, &t.DueDate, &t.AssignedTo, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
+			return nil, err
+		}
+		listID := groupList[t.TaskGroupID]
+		li := listMap[listID]
+		gi := groupMap[t.TaskGroupID]
+		taskMap[t.ID] = len(campaign.TaskLists[li].TaskGroups[gi].Tasks)
+		taskGroup[t.ID] = t.TaskGroupID
+		campaign.TaskLists[li].TaskGroups[gi].Tasks = append(campaign.TaskLists[li].TaskGroups[gi].Tasks, t)
+	}
+	if err := taskRows.Err(); err != nil {
+		return nil, err
+	}
+	taskRows.Close()
+
+	// Fetch subtasks
+	subtaskRows, err := s.pool.Query(ctx, `
+		SELECT st.id, st.task_id, st.name, st.is_complete, st.position
+		FROM subtasks st
+		JOIN tasks t ON t.id = st.task_id
+		JOIN task_groups tg ON tg.id = t.task_group_id
+		JOIN task_lists tl ON tl.id = tg.task_list_id
+		WHERE tl.campaign_id = $1
+		ORDER BY st.position
+	`, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer subtaskRows.Close()
+
+	for subtaskRows.Next() {
+		var st model.Subtask
+		if err := subtaskRows.Scan(&st.ID, &st.TaskID, &st.Name, &st.IsComplete, &st.Position); err != nil {
+			return nil, err
+		}
+		gID := taskGroup[st.TaskID]
+		listID := groupList[gID]
+		li := listMap[listID]
+		gi := groupMap[gID]
+		ti := taskMap[st.TaskID]
+		campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks = append(
+			campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks, st,
+		)
+	}
+	if err := subtaskRows.Err(); err != nil {
 		return nil, err
 	}
 
-	if campaign == nil {
-		return nil, fmt.Errorf("campaign not found")
-	}
-	return campaign, nil
+	return &campaign, nil
 }
 
 func (s *Store) ArchiveCampaign(ctx context.Context, campaignID string, archived bool) error {
