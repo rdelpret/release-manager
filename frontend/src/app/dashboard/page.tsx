@@ -27,7 +27,7 @@ export default function DashboardPage() {
     }
   }, [loading, email, router]);
 
-  if (loading || isLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -152,9 +152,17 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {activeCampaigns.map((campaign) => (
-          <CampaignCard key={campaign.id} campaign={campaign} />
-        ))}
+        {isLoading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl bg-bg-surface p-5 animate-pulse">
+                <div className="h-5 w-2/3 rounded bg-white/[0.06] mb-3" />
+                <div className="h-1.5 rounded-full bg-white/[0.06] mb-2" />
+                <div className="h-3 w-1/3 rounded bg-white/[0.06]" />
+              </div>
+            ))
+          : activeCampaigns.map((campaign) => (
+              <CampaignCard key={campaign.id} campaign={campaign} />
+            ))}
       </div>
 
       {archivedCampaigns.length > 0 && (
