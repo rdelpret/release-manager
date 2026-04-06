@@ -185,6 +185,7 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	if users == nil {
 		users = []model.User{}
 	}
+	w.Header().Set("Cache-Control", "private, max-age=300")
 	writeJSON(w, http.StatusOK, users)
 }
 

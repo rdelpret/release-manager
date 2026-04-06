@@ -22,7 +22,7 @@ func New() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
-	config.MaxConns = 10
+	config.MaxConns = 25
 	config.MinConns = 5
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
