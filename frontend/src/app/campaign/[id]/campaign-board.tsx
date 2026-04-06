@@ -157,38 +157,39 @@ export function CampaignBoard() {
         )}
       </div>
 
-      <div className={showOverview ? "" : "hidden"}>
+      {showOverview ? (
         <CampaignOverview campaign={campaign} users={users} />
-      </div>
-      <div className={showOverview ? "hidden" : ""}>
-        {/* Tabs */}
-        {lists.length > 0 && (
-          <TaskListTabs
-            lists={lists}
-            activeId={activeList?.id ?? ""}
-            onSelect={setActiveListId}
-          />
-        )}
+      ) : (
+        <>
+          {/* Tabs */}
+          {lists.length > 0 && (
+            <TaskListTabs
+              lists={lists}
+              activeId={activeList?.id ?? ""}
+              onSelect={setActiveListId}
+            />
+          )}
 
-        {/* Active list content */}
-        {activeList && (
-          <div className="mt-4 bg-bg-surface rounded-xl p-5">
-            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              {(activeList.task_groups ?? []).map((group) => (
-                <TaskGroup
-                  key={group.id}
-                  group={group}
-                  campaignId={id}
-                  hideDone={hideDone}
-                  users={users}
-                  onSelectTask={setSelectedTask}
-                  onStatusChange={handleStatusChange}
-                />
-              ))}
-            </DndContext>
-          </div>
-        )}
-      </div>
+          {/* Active list content */}
+          {activeList && (
+            <div className="mt-4 bg-bg-surface rounded-xl p-5">
+              <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                {(activeList.task_groups ?? []).map((group) => (
+                  <TaskGroup
+                    key={group.id}
+                    group={group}
+                    campaignId={id}
+                    hideDone={hideDone}
+                    users={users}
+                    onSelectTask={setSelectedTask}
+                    onStatusChange={handleStatusChange}
+                  />
+                ))}
+              </DndContext>
+            </div>
+          )}
+        </>
+      )}
 
       {selectedTask && (
         <Suspense fallback={null}>
