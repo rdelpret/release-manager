@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { Task, User } from "@/lib/types";
 import Image from "next/image";
 import { Circle, CircleDot, CheckCircle2, GripVertical } from "lucide-react";
@@ -30,7 +31,6 @@ function AvatarBadge({ user }: { user: User }) {
         width={20}
         height={20}
         className="rounded-full object-cover"
-        unoptimized
       />
     );
   }
@@ -44,7 +44,7 @@ function AvatarBadge({ user }: { user: User }) {
   );
 }
 
-export function TaskItem({ task, users, onSelect, onStatusChange }: TaskItemProps) {
+export const TaskItem = memo(function TaskItem({ task, users, onSelect, onStatusChange }: TaskItemProps) {
   const { icon: StatusIcon, color } = statusConfig[task.status];
   const {
     attributes,
@@ -110,4 +110,4 @@ export function TaskItem({ task, users, onSelect, onStatusChange }: TaskItemProp
       )}
     </div>
   );
-}
+});

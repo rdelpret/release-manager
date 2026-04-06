@@ -56,5 +56,6 @@ export function useUsers() {
   return useQuery<User[]>({
     queryKey: ["users"],
     queryFn: api.listUsers,
+    staleTime: 10 * 60 * 1000, // 10 minutes — users rarely change
   });
 }

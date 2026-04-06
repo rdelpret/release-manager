@@ -14,6 +14,7 @@ func (s *Server) routes() chi.Router {
 
 	r.Use(chiMiddleware.Logger)
 	r.Use(chiMiddleware.Recoverer)
+	r.Use(chiMiddleware.Compress(5))
 	r.Use(corsMiddleware)
 
 	// Auth routes (public)

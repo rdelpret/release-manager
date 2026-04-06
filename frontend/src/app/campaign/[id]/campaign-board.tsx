@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, lazy, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useCampaign, useUsers } from "@/hooks/use-campaign";
 import { TaskListTabs } from "@/components/task-list-tabs";
@@ -12,7 +12,7 @@ import { updateTask, setReleaseDate } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Task } from "@/lib/types";
-import { TaskDetail } from "@/components/task-detail";
+const TaskDetail = lazy(() => import("@/components/task-detail").then((m) => ({ default: m.TaskDetail })));
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { useTaskDragDrop } from "@/hooks/use-drag-drop";
 import { CampaignOverview } from "@/components/campaign-overview";
@@ -157,56 +157,57 @@ export function CampaignBoard() {
         )}
       </div>
 
-      {showOverview ? (
+      <div className={showOverview ? "" : "hidden"}>
         <CampaignOverview campaign={campaign} users={users} />
-      ) : (
-        <>
-          {/* Tabs */}
-          {lists.length > 0 && (
-            <TaskListTabs
-              lists={lists}
-              activeId={activeList?.id ?? ""}
-              onSelect={setActiveListId}
-            />
-          )}
+      </div>
+      <div className={showOverview ? "hidden" : ""}>
+        {/* Tabs */}
+        {lists.length > 0 && (
+          <TaskListTabs
+            lists={lists}
+            activeId={activeList?.id ?? ""}
+            onSelect={setActiveListId}
+          />
+        )}
 
-          {/* Active list content */}
-          {activeList && (
-            <div className="mt-4 bg-bg-surface rounded-xl p-5">
-              <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                {(activeList.task_groups ?? []).map((group) => (
-                  <TaskGroup
-                    key={group.id}
-                    group={group}
-                    campaignId={id}
-                    hideDone={hideDone}
-                    users={users}
-                    onSelectTask={setSelectedTask}
-                    onStatusChange={handleStatusChange}
-                  />
-                ))}
-              </DndContext>
-            </div>
-          )}
-        </>
-      )}
+        {/* Active list content */}
+        {activeList && (
+          <div className="mt-4 bg-bg-surface rounded-xl p-5">
+            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              {(activeList.task_groups ?? []).map((group) => (
+                <TaskGroup
+                  key={group.id}
+                  group={group}
+                  campaignId={id}
+                  hideDone={hideDone}
+                  users={users}
+                  onSelectTask={setSelectedTask}
+                  onStatusChange={handleStatusChange}
+                />
+              ))}
+            </DndContext>
+          </div>
+        )}
+      </div>
 
       {selectedTask && (
-        <TaskDetail
-          task={selectedTask}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={() => {
-            queryClient.invalidateQueries({ queryKey: ["campaign", id] });
-            // Refresh selected task
-            if (selectedTask) {
-              const updated = campaign?.task_lists
-                ?.flatMap((l) => l.task_groups ?? [])
-                ?.flatMap((g) => g.tasks ?? [])
-                ?.find((t) => t.id === selectedTask.id);
-              if (updated) setSelectedTask(updated);
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <TaskDetail
+            task={selectedTask}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ["campaign", id] });
+              // Refresh selected task
+              if (selectedTask) {
+                const updated = campaign?.task_lists
+                  ?.flatMap((l) => l.task_groups ?? [])
+                  ?.flatMap((g) => g.tasks ?? [])
+                  ?.find((t) => t.id === selectedTask.id);
+                if (updated) setSelectedTask(updated);
+              }
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

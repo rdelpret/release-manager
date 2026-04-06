@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Campaign, User } from "@/lib/types";
 
 interface CampaignOverviewProps {
@@ -12,44 +12,60 @@ export function CampaignOverview({ campaign, users }: CampaignOverviewProps) {
   const [now] = useState(() => Date.now());
   const today = new Date(now).toISOString().slice(0, 10);
 
-  const allTasks = (campaign.task_lists ?? []).flatMap((l) =>
-    (l.task_groups ?? []).flatMap((g) => (g.tasks ?? []).map((t) => ({ ...t, listName: l.name, listColor: l.color })))
+  const allTasks = useMemo(
+    () =>
+      (campaign.task_lists ?? []).flatMap((l) =>
+        (l.task_groups ?? []).flatMap((g) => (g.tasks ?? []).map((t) => ({ ...t, listName: l.name, listColor: l.color })))
+      ),
+    [campaign.task_lists]
   );
 
   const totalTasks = allTasks.length;
   const doneTasks = allTasks.filter((t) => t.status === "done").length;
-  const overdueTasks = allTasks.filter((t) => t.status !== "done" && t.due_date && t.due_date < today);
-  const upcomingTasks = allTasks
-    .filter((t) => t.status !== "done" && t.due_date && t.due_date >= today)
-    .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""))
-    .slice(0, 10);
+  const overdueTasks = useMemo(
+    () => allTasks.filter((t) => t.status !== "done" && t.due_date && t.due_date < today),
+    [allTasks, today]
+  );
+  const upcomingTasks = useMemo(
+    () =>
+      allTasks
+        .filter((t) => t.status !== "done" && t.due_date && t.due_date >= today)
+        .sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""))
+        .slice(0, 10),
+    [allTasks, today]
+  );
 
-  // Per-list stats
-  const listStats = (campaign.task_lists ?? []).map((list) => {
-    const tasks = (list.task_groups ?? []).flatMap((g) => g.tasks ?? []);
-    const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
-    const overdue = tasks.filter((t) => t.status !== "done" && t.due_date && t.due_date < today).length;
-    return { name: list.name, color: list.color, total, done, overdue };
-  });
+  const listStats = useMemo(
+    () =>
+      (campaign.task_lists ?? []).map((list) => {
+        const tasks = (list.task_groups ?? []).flatMap((g) => g.tasks ?? []);
+        const total = tasks.length;
+        const done = tasks.filter((t) => t.status === "done").length;
+        const overdue = tasks.filter((t) => t.status !== "done" && t.due_date && t.due_date < today).length;
+        return { id: list.id, name: list.name, color: list.color, total, done, overdue };
+      }),
+    [campaign.task_lists, today]
+  );
 
-  // Per-person stats
-  const personMap = new Map<string, { name: string; total: number; done: number; overdue: number }>();
-  for (const task of allTasks) {
-    if (!task.assigned_to) continue;
-    const user = users?.find((u) => u.id === task.assigned_to);
-    const key = task.assigned_to;
-    if (!personMap.has(key)) {
-      personMap.set(key, { name: user?.name ?? "Unknown", total: 0, done: 0, overdue: 0 });
+  const { personStats, unassignedCount } = useMemo(() => {
+    const personMap = new Map<string, { name: string; total: number; done: number; overdue: number }>();
+    for (const task of allTasks) {
+      if (!task.assigned_to) continue;
+      const user = users?.find((u) => u.id === task.assigned_to);
+      const key = task.assigned_to;
+      if (!personMap.has(key)) {
+        personMap.set(key, { name: user?.name ?? "Unknown", total: 0, done: 0, overdue: 0 });
+      }
+      const p = personMap.get(key)!;
+      p.total++;
+      if (task.status === "done") p.done++;
+      else if (task.due_date && task.due_date < today) p.overdue++;
     }
-    const p = personMap.get(key)!;
-    p.total++;
-    if (task.status === "done") p.done++;
-    else if (task.due_date && task.due_date < today) p.overdue++;
-  }
-  const personStats = Array.from(personMap.values()).sort((a, b) => b.total - a.total);
-
-  const unassignedCount = allTasks.filter((t) => !t.assigned_to && t.status !== "done").length;
+    return {
+      personStats: Array.from(personMap.values()).sort((a, b) => b.total - a.total),
+      unassignedCount: allTasks.filter((t) => !t.assigned_to && t.status !== "done").length,
+    };
+  }, [allTasks, users, today]);
 
   return (
     <div className="mt-4 space-y-6">
@@ -82,7 +98,7 @@ export function CampaignOverview({ campaign, users }: CampaignOverviewProps) {
         <h3 className="text-sm font-semibold text-text-muted uppercase tracking-wider mb-3">Progress by List</h3>
         <div className="space-y-3">
           {listStats.map((list) => (
-            <div key={list.name}>
+            <div key={list.id}>
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: list.color }} />

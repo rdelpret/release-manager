@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Copy, Archive, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDuplicateCampaign, useArchiveCampaign, useDeleteCampaign } from "@/hooks/use-campaign";
+import { useQueryClient } from "@tanstack/react-query";
+import * as api from "@/lib/api";
 import { toast } from "sonner";
 
 function getUrgency(campaign: Campaign, now: number): "green" | "yellow" | "red" | "neutral" {
@@ -38,6 +40,7 @@ const urgencyBar = {
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const duplicate = useDuplicateCampaign();
   const archive = useArchiveCampaign();
   const del = useDeleteCampaign();
@@ -84,6 +87,13 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
   return (
     <div
       onClick={() => router.push(`/campaign/${campaign.id}`)}
+      onMouseEnter={() =>
+        queryClient.prefetchQuery({
+          queryKey: ["campaign", campaign.id],
+          queryFn: () => api.getCampaign(campaign.id),
+          staleTime: 60_000,
+        })
+      }
       className={`group cursor-pointer rounded-xl bg-bg-surface p-5 transition-smooth glow-hover border ${urgencyBorder[urgency]} hover:border-accent/20`}
     >
       <div className="flex items-start justify-between">

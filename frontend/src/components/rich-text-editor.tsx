@@ -14,7 +14,12 @@ export function RichTextEditor({ content, onUpdate }: RichTextEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        codeBlock: false,
+        blockquote: false,
+        horizontalRule: false,
+        heading: false,
+      }),
       Placeholder.configure({ placeholder: "Add a description..." }),
     ],
     content: content ?? undefined,

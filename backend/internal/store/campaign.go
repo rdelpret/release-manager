@@ -343,8 +343,11 @@ func (s *Store) SetReleaseDate(ctx context.Context, campaignID, releaseDate stri
 		scale = 0.5
 	}
 
-	// Recalculate due dates for all tasks using the correct template offsets
+	// Recalculate due dates for all tasks using the correct template offsets.
+	// Collect all name→date pairs and batch into a single UPDATE.
 	tmpl := template.GetTemplate(templateType)
+	var taskNames []string
+	var dueDates []string
 	for _, list := range tmpl {
 		for _, group := range list.Groups {
 			for _, task := range group.Tasks {
@@ -356,20 +359,25 @@ func (s *Store) SetReleaseDate(ctx context.Context, campaignID, releaseDate stri
 				if offset < 0 {
 					offset = int(float64(offset) * scale)
 				}
-				dueDate := relDate.AddDate(0, 0, offset).Format("2006-01-02")
-
-				_, err = tx.Exec(ctx, `
-					UPDATE tasks SET due_date = $1
-					WHERE task_group_id IN (
-						SELECT tg.id FROM task_groups tg
-						JOIN task_lists tl ON tl.id = tg.task_list_id
-						WHERE tl.campaign_id = $2
-					) AND name = $3
-				`, dueDate, campaignID, task.Name)
-				if err != nil {
-					return fmt.Errorf("updating due date for %s: %w", task.Name, err)
-				}
+				taskNames = append(taskNames, task.Name)
+				dueDates = append(dueDates, relDate.AddDate(0, 0, offset).Format("2006-01-02"))
 			}
+		}
+	}
+
+	if len(taskNames) > 0 {
+		_, err = tx.Exec(ctx, `
+			UPDATE tasks t SET due_date = v.due_date::date
+			FROM unnest($1::text[], $2::text[]) AS v(task_name, due_date)
+			WHERE t.name = v.task_name
+			AND t.task_group_id IN (
+				SELECT tg.id FROM task_groups tg
+				JOIN task_lists tl ON tl.id = tg.task_list_id
+				WHERE tl.campaign_id = $3
+			)
+		`, taskNames, dueDates, campaignID)
+		if err != nil {
+			return fmt.Errorf("batch updating due dates: %w", err)
 		}
 	}
 
@@ -413,44 +421,154 @@ func (s *Store) DuplicateCampaign(ctx context.Context, sourceCampaignID, userID 
 		return nil, err
 	}
 
+	// Duplicate entire hierarchy in 4 batched queries instead of N per entity.
+	// Each level uses INSERT...SELECT with a mapping CTE to link old→new IDs.
+
+	// 1. Duplicate task lists
 	listRows, err := tx.Query(ctx, `
-		SELECT id, name, color, position FROM task_lists
-		WHERE campaign_id = $1 ORDER BY position
-	`, sourceCampaignID)
+		WITH inserted AS (
+			INSERT INTO task_lists (campaign_id, name, color, position)
+			SELECT $1, name, color, position
+			FROM task_lists WHERE campaign_id = $2
+			ORDER BY position
+			RETURNING id, name, color, position
+		)
+		SELECT ol.id AS old_id, ins.id AS new_id
+		FROM (SELECT id, name, position, ROW_NUMBER() OVER (ORDER BY position) rn FROM task_lists WHERE campaign_id = $2) ol
+		JOIN (SELECT id, name, position, ROW_NUMBER() OVER (ORDER BY position) rn FROM inserted) ins ON ol.rn = ins.rn
+	`, campaign.ID, sourceCampaignID)
 	if err != nil {
 		return nil, err
 	}
-	defer listRows.Close()
-
-	type listMapping struct {
-		oldID string
-		newID string
-	}
-	var listMappings []listMapping
-
+	var oldListIDs, newListIDs []string
 	for listRows.Next() {
-		var oldID, name, color string
-		var position int
-		if err := listRows.Scan(&oldID, &name, &color, &position); err != nil {
+		var oldID, newID string
+		if err := listRows.Scan(&oldID, &newID); err != nil {
+			listRows.Close()
 			return nil, err
 		}
-		var newID string
-		err = tx.QueryRow(ctx, `
-			INSERT INTO task_lists (campaign_id, name, color, position)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id
-		`, campaign.ID, name, color, position).Scan(&newID)
-		if err != nil {
-			return nil, err
-		}
-		listMappings = append(listMappings, listMapping{oldID, newID})
+		oldListIDs = append(oldListIDs, oldID)
+		newListIDs = append(newListIDs, newID)
 	}
+	listRows.Close()
 	if err := listRows.Err(); err != nil {
 		return nil, err
 	}
 
-	for _, lm := range listMappings {
-		if err := s.duplicateGroupsForList(ctx, tx, lm.oldID, lm.newID); err != nil {
+	if len(oldListIDs) == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return &campaign, nil
+	}
+
+	// 2. Duplicate task groups (batch across all lists)
+	groupRows, err := tx.Query(ctx, `
+		WITH list_map AS (
+			SELECT unnest($1::uuid[]) AS old_id, unnest($2::uuid[]) AS new_id
+		),
+		inserted AS (
+			INSERT INTO task_groups (task_list_id, name, position, collapsed)
+			SELECT lm.new_id, tg.name, tg.position, tg.collapsed
+			FROM task_groups tg
+			JOIN list_map lm ON lm.old_id = tg.task_list_id
+			ORDER BY tg.task_list_id, tg.position
+			RETURNING id, task_list_id, name, position
+		)
+		SELECT og.id AS old_id, ins.id AS new_id
+		FROM (
+			SELECT tg.id, tg.task_list_id, tg.name, tg.position,
+				ROW_NUMBER() OVER (ORDER BY tg.task_list_id, tg.position) rn
+			FROM task_groups tg
+			JOIN list_map lm ON lm.old_id = tg.task_list_id
+		) og
+		JOIN (
+			SELECT ins.id, ins.task_list_id, ins.name, ins.position,
+				ROW_NUMBER() OVER (ORDER BY ins.task_list_id, ins.position) rn
+			FROM inserted ins
+		) ins ON og.rn = ins.rn
+	`, oldListIDs, newListIDs)
+	if err != nil {
+		return nil, err
+	}
+	var oldGroupIDs, newGroupIDs []string
+	for groupRows.Next() {
+		var oldID, newID string
+		if err := groupRows.Scan(&oldID, &newID); err != nil {
+			groupRows.Close()
+			return nil, err
+		}
+		oldGroupIDs = append(oldGroupIDs, oldID)
+		newGroupIDs = append(newGroupIDs, newID)
+	}
+	groupRows.Close()
+	if err := groupRows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(oldGroupIDs) == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return &campaign, nil
+	}
+
+	// 3. Duplicate tasks (batch across all groups)
+	taskRows, err := tx.Query(ctx, `
+		WITH group_map AS (
+			SELECT unnest($1::uuid[]) AS old_id, unnest($2::uuid[]) AS new_id
+		),
+		inserted AS (
+			INSERT INTO tasks (task_group_id, name, description, status, due_date, position)
+			SELECT gm.new_id, t.name, t.description, 'todo', NULL, t.position
+			FROM tasks t
+			JOIN group_map gm ON gm.old_id = t.task_group_id
+			ORDER BY t.task_group_id, t.position
+			RETURNING id, task_group_id, name, position
+		)
+		SELECT ot.id AS old_id, ins.id AS new_id
+		FROM (
+			SELECT t.id, t.task_group_id, t.name, t.position,
+				ROW_NUMBER() OVER (ORDER BY t.task_group_id, t.position) rn
+			FROM tasks t
+			JOIN group_map gm ON gm.old_id = t.task_group_id
+		) ot
+		JOIN (
+			SELECT ins.id, ins.task_group_id, ins.name, ins.position,
+				ROW_NUMBER() OVER (ORDER BY ins.task_group_id, ins.position) rn
+			FROM inserted ins
+		) ins ON ot.rn = ins.rn
+	`, oldGroupIDs, newGroupIDs)
+	if err != nil {
+		return nil, err
+	}
+	var oldTaskIDs, newTaskIDs []string
+	for taskRows.Next() {
+		var oldID, newID string
+		if err := taskRows.Scan(&oldID, &newID); err != nil {
+			taskRows.Close()
+			return nil, err
+		}
+		oldTaskIDs = append(oldTaskIDs, oldID)
+		newTaskIDs = append(newTaskIDs, newID)
+	}
+	taskRows.Close()
+	if err := taskRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// 4. Duplicate subtasks (single batch for all tasks)
+	if len(oldTaskIDs) > 0 {
+		_, err = tx.Exec(ctx, `
+			WITH task_map AS (
+				SELECT unnest($1::uuid[]) AS old_id, unnest($2::uuid[]) AS new_id
+			)
+			INSERT INTO subtasks (task_id, name, is_complete, position)
+			SELECT tm.new_id, st.name, false, st.position
+			FROM subtasks st
+			JOIN task_map tm ON tm.old_id = st.task_id
+		`, oldTaskIDs, newTaskIDs)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -459,101 +577,6 @@ func (s *Store) DuplicateCampaign(ctx context.Context, sourceCampaignID, userID 
 		return nil, err
 	}
 	return &campaign, nil
-}
-
-func (s *Store) duplicateGroupsForList(ctx context.Context, tx pgx.Tx, oldListID, newListID string) error {
-	groupRows, err := tx.Query(ctx, `
-		SELECT id, name, position, collapsed FROM task_groups
-		WHERE task_list_id = $1 ORDER BY position
-	`, oldListID)
-	if err != nil {
-		return err
-	}
-	defer groupRows.Close()
-
-	type groupMapping struct {
-		oldID string
-		newID string
-	}
-	var groupMappings []groupMapping
-
-	for groupRows.Next() {
-		var oldID, name string
-		var position int
-		var collapsed bool
-		if err := groupRows.Scan(&oldID, &name, &position, &collapsed); err != nil {
-			return err
-		}
-		var newID string
-		err = tx.QueryRow(ctx, `
-			INSERT INTO task_groups (task_list_id, name, position, collapsed)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id
-		`, newListID, name, position, collapsed).Scan(&newID)
-		if err != nil {
-			return err
-		}
-		groupMappings = append(groupMappings, groupMapping{oldID, newID})
-	}
-	if err := groupRows.Err(); err != nil {
-		return err
-	}
-
-	for _, gm := range groupMappings {
-		if err := s.duplicateTasksForGroup(ctx, tx, gm.oldID, gm.newID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Store) duplicateTasksForGroup(ctx context.Context, tx pgx.Tx, oldGroupID, newGroupID string) error {
-	taskRows, err := tx.Query(ctx, `
-		SELECT id, name, description, status, due_date, position
-		FROM tasks WHERE task_group_id = $1 ORDER BY position
-	`, oldGroupID)
-	if err != nil {
-		return err
-	}
-	defer taskRows.Close()
-
-	type taskMapping struct {
-		oldID string
-		newID string
-	}
-	var taskMappings []taskMapping
-
-	for taskRows.Next() {
-		var t model.Task
-		if err := taskRows.Scan(&t.ID, &t.Name, &t.Description, &t.Status, &t.DueDate, &t.Position); err != nil {
-			return err
-		}
-		var newID string
-		err = tx.QueryRow(ctx, `
-			INSERT INTO tasks (task_group_id, name, description, status, due_date, position)
-			VALUES ($1, $2, $3, 'todo', NULL, $4)
-			RETURNING id
-		`, newGroupID, t.Name, t.Description, t.Position).Scan(&newID)
-		if err != nil {
-			return err
-		}
-		taskMappings = append(taskMappings, taskMapping{t.ID, newID})
-	}
-	if err := taskRows.Err(); err != nil {
-		return err
-	}
-
-	for _, tm := range taskMappings {
-		_, err := tx.Exec(ctx, `
-			INSERT INTO subtasks (task_id, name, is_complete, position)
-			SELECT $1, name, false, position
-			FROM subtasks WHERE task_id = $2
-		`, tm.newID, tm.oldID)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID, templateType string, releaseDate *string) error {
