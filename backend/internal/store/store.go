@@ -23,15 +23,11 @@ func New() (*Store, error) {
 		return nil, fmt.Errorf("parsing database config: %w", err)
 	}
 	config.MaxConns = 25
-	config.MinConns = 5
+	config.MinConns = 0
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return nil, fmt.Errorf("creating connection pool: %w", err)
-	}
-
-	if err := pool.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("pinging database: %w", err)
 	}
 
 	return &Store{pool: pool}, nil
