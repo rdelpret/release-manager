@@ -11,10 +11,24 @@ import { logout } from "@/lib/api";
 import { toast } from "sonner";
 import type { TemplateType } from "@/lib/types";
 
+function SkeletonCards() {
+  return (
+    <>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="rounded-xl bg-bg-surface p-5 animate-pulse">
+          <div className="h-5 w-2/3 rounded bg-white/[0.06] mb-3" />
+          <div className="h-1.5 rounded-full bg-white/[0.06] mb-2" />
+          <div className="h-3 w-1/3 rounded bg-white/[0.06]" />
+        </div>
+      ))}
+    </>
+  );
+}
+
 export default function DashboardPage() {
-  const { email, loading, waking } = useAuth();
+  const { email, loading: authLoading, waking } = useAuth();
   const router = useRouter();
-  const { data: campaigns, isLoading } = useCampaigns();
+  const { data: campaigns, isLoading: campaignsLoading } = useCampaigns();
   const createCampaign = useCreateCampaign();
   const [newName, setNewName] = useState("");
   const [releaseDate, setReleaseDate] = useState("");
@@ -22,26 +36,15 @@ export default function DashboardPage() {
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
-    if (!loading && !email) {
+    if (!authLoading && !email) {
       router.replace("/login");
     }
-  }, [loading, email, router]);
+  }, [authLoading, email, router]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="text-text-muted">Loading...</div>
-          {waking && (
-            <div className="text-xs text-text-muted mt-2">Waking up server — this takes a few seconds on first visit</div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // Don't redirect yet while auth is loading — but still show the shell
+  const isLoading = authLoading || campaignsLoading;
 
   const activeCampaigns = (campaigns?.filter((c) => !c.archived) ?? []).sort((a, b) => {
-    // Sort by release date (soonest first), campaigns without a date go last
     if (a.release_date && b.release_date) return a.release_date.localeCompare(b.release_date);
     if (a.release_date) return -1;
     if (b.release_date) return 1;
@@ -75,17 +78,24 @@ export default function DashboardPage() {
     <div className="min-h-screen p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-heading font-bold text-accent">Subwave</h1>
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
+        <Button variant="ghost" size="sm" onClick={handleLogout} disabled={authLoading}>
           <LogOut className="h-4 w-4 mr-2" />
           Sign out
         </Button>
       </div>
+
+      {waking && (
+        <div className="text-center text-xs text-text-muted mb-4 animate-pulse">
+          Waking up server — this takes a few seconds on first visit
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-heading font-semibold">Campaigns</h2>
         <Button
           onClick={() => setShowCreate(true)}
           className="bg-accent text-bg-base hover:bg-accent-dark"
+          disabled={isLoading}
         >
           <Plus className="h-4 w-4 mr-2" />
           New Campaign
@@ -153,13 +163,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {isLoading
-          ? Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="rounded-xl bg-bg-surface p-5 animate-pulse">
-                <div className="h-5 w-2/3 rounded bg-white/[0.06] mb-3" />
-                <div className="h-1.5 rounded-full bg-white/[0.06] mb-2" />
-                <div className="h-3 w-1/3 rounded bg-white/[0.06]" />
-              </div>
-            ))
+          ? <SkeletonCards />
           : activeCampaigns.map((campaign) => (
               <CampaignCard key={campaign.id} campaign={campaign} />
             ))}
