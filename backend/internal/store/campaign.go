@@ -232,7 +232,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 
 	// Fetch tasks
 	taskRows, err := s.pool.Query(ctx, `
-		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at
+		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date::text, t.assigned_to, t.position, t.created_at, t.updated_at
 		FROM tasks t
 		JOIN task_groups tg ON tg.id = t.task_group_id
 		JOIN task_lists tl ON tl.id = tg.task_list_id
