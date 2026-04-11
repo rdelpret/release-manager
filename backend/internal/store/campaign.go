@@ -90,7 +90,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 	err = tx.QueryRow(ctx, `
 		INSERT INTO campaigns (created_by, name, template_type, release_date, schedule_weeks)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+		RETURNING id, created_by, name, archived, template_type, release_date::text, schedule_weeks, created_at, updated_at
 	`, userID, name, templateType, releaseDate, scheduleWeeks).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
 		&campaign.Archived, &campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
@@ -117,7 +117,7 @@ func (s *Store) CreateCampaign(ctx context.Context, userID, name string, release
 
 func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campaign, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date, c.schedule_weeks, c.created_at, c.updated_at,
+		SELECT c.id, c.created_by, c.name, c.archived, c.template_type, c.release_date::text, c.schedule_weeks, c.created_at, c.updated_at,
 			COALESCE(cs.total, 0),
 			COALESCE(cs.done, 0),
 			COALESCE(cs.overdue, 0)
@@ -158,7 +158,7 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	// Fetch campaign
 	var campaign model.Campaign
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+		SELECT id, created_by, name, archived, template_type, release_date::text, schedule_weeks, created_at, updated_at
 		FROM campaigns WHERE id = $1
 	`, campaignID).Scan(
 		&campaign.ID, &campaign.CreatedBy, &campaign.Name, &campaign.Archived,
@@ -406,7 +406,7 @@ func (s *Store) DuplicateCampaign(ctx context.Context, sourceCampaignID, userID 
 	err = tx.QueryRow(ctx, `
 		INSERT INTO campaigns (created_by, name, template_type)
 		VALUES ($1, $2, $3)
-		RETURNING id, created_by, name, archived, template_type, release_date, schedule_weeks, created_at, updated_at
+		RETURNING id, created_by, name, archived, template_type, release_date::text, schedule_weeks, created_at, updated_at
 	`, userID, sourceName+" (Copy)", sourceTemplateType).Scan(&campaign.ID, &campaign.CreatedBy, &campaign.Name,
 		&campaign.Archived, &campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks, &campaign.CreatedAt, &campaign.UpdatedAt)
 	if err != nil {
