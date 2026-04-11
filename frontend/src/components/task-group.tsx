@@ -35,6 +35,7 @@ export function TaskGroup({ group, campaignId, hideDone, users, onSelectTask, on
       setNewTaskName("");
       setAdding(false);
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       onSelectTask(task);
     } catch (err: any) {
       toast.error(err.message);
