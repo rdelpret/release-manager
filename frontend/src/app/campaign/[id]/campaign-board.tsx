@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { updateTask, setReleaseDate } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { Task } from "@/lib/types";
+import type { Task, Campaign } from "@/lib/types";
 const TaskDetail = lazy(() => import("@/components/task-detail").then((m) => ({ default: m.TaskDetail })));
 import { DndContext, closestCenter } from "@dnd-kit/core";
 import { useTaskDragDrop } from "@/hooks/use-drag-drop";
@@ -62,10 +62,31 @@ export function CampaignBoard() {
   }
 
   const handleStatusChange = async (taskId: string, status: Task["status"]) => {
+    // Optimistic: update cache immediately
+    const prev = queryClient.getQueryData<Campaign>(["campaign", id]);
+    if (prev) {
+      queryClient.setQueryData<Campaign>(["campaign", id], {
+        ...prev,
+        task_lists: prev.task_lists?.map((l) => ({
+          ...l,
+          task_groups: l.task_groups?.map((g) => ({
+            ...g,
+            tasks: g.tasks?.map((t) =>
+              t.id === taskId ? { ...t, status } : t
+            ),
+          })),
+        })),
+      });
+    }
+    if (selectedTask?.id === taskId) {
+      setSelectedTask({ ...selectedTask, status });
+    }
     try {
       await updateTask(taskId, { status });
       queryClient.invalidateQueries({ queryKey: ["campaign", id] });
     } catch (err: any) {
+      // Rollback
+      if (prev) queryClient.setQueryData(["campaign", id], prev);
       toast.error(err.message);
     }
   };
