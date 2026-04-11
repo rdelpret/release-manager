@@ -93,16 +93,16 @@ export function CampaignBoard() {
   };
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto">
+    <div className="min-h-screen px-4 py-6 md:px-6 max-w-5xl mx-auto">
       {/* Top bar */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}>
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => router.push("/dashboard")}>
             <ArrowLeft className="h-4 w-4 text-accent" />
           </Button>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">{campaign.name}</h1>
+          <h1 className="text-xl md:text-2xl font-heading font-bold text-text-primary truncate">{campaign.name}</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {!showOverview && <HideDoneToggle hidden={hideDone} onToggle={() => setHideDone(!hideDone)} />}
           <Button
             variant="ghost"
@@ -110,22 +110,22 @@ export function CampaignBoard() {
             onClick={() => setShowOverview(!showOverview)}
             className={showOverview ? "bg-accent/10 text-accent" : ""}
           >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Overview
+            <BarChart3 className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Overview</span>
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push(`/campaign/${id}/calendar`)}
           >
-            <Calendar className="h-4 w-4 mr-2" />
-            Calendar
+            <Calendar className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Calendar</span>
           </Button>
         </div>
       </div>
 
       {/* Release date + schedule */}
-      <div className="flex items-center gap-4 mb-4 bg-bg-surface rounded-lg px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 bg-bg-surface rounded-lg px-4 py-3">
         <label className="text-xs text-text-muted">Release Date</label>
         <input
           type="date"
@@ -176,7 +176,7 @@ export function CampaignBoard() {
           ))}
         </div>
         {daysUntilRelease !== null && (
-          <span className="text-xs text-text-muted ml-auto">
+          <span className="text-xs text-text-muted sm:ml-auto">
             {daysUntilRelease} days until release
           </span>
         )}

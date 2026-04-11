@@ -40,17 +40,17 @@ export function CalendarPageContent() {
     .flatMap((g) => g.tasks ?? []);
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto">
+    <div className="min-h-screen px-4 py-6 md:px-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard")}>
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => router.push("/dashboard")}>
             <ArrowLeft className="h-4 w-4 text-accent" />
           </Button>
-          <h1 className="text-2xl font-heading font-bold text-text-primary">{campaign.name}</h1>
+          <h1 className="text-xl md:text-2xl font-heading font-bold text-text-primary truncate">{campaign.name}</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => router.push(`/campaign/${id}`)}>
-          <LayoutGrid className="h-4 w-4 mr-2" />
-          Board
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/campaign/${id}`)}>
+          <LayoutGrid className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Board</span>
         </Button>
       </div>
 

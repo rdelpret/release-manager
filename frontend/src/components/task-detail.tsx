@@ -108,7 +108,9 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-bg-surface border-l border-border glass p-6 overflow-y-auto z-50">
+    <>
+    <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />
+    <div className="fixed inset-y-0 right-0 w-full md:w-96 bg-bg-surface border-l border-border glass px-4 py-6 md:p-6 overflow-y-auto z-50">
       <div className="flex items-center justify-between mb-6">
         <input
           value={name}
@@ -235,5 +237,6 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
         Delete task
       </Button>
     </div>
+    </>
   );
 }

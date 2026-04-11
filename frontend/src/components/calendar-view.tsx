@@ -99,52 +99,55 @@ export function CalendarView({ tasks, onSelectTask }: CalendarViewProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div
-            key={d}
-            className="text-xs font-semibold text-text-muted text-center py-2"
-          >
-            {d}
-          </div>
-        ))}
-        {blanks.map((i) => (
-          <div key={`blank-${i}`} />
-        ))}
-        {days.map((day) => {
-          const dateStr = formatDate(day);
-          const dayTasks = tasksByDate[dateStr] ?? [];
-          const isToday =
-            isCurrentMonth && day === today.getDate();
-
-          return (
+      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="grid grid-cols-7 gap-1 min-w-[500px]">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div
-              key={day}
-              className={`min-h-[80px] rounded-lg p-2 text-xs ${
-                isToday
-                  ? "border border-accent/30 bg-accent/5"
-                  : "bg-bg-surface"
-              }`}
+              key={d}
+              className="text-xs font-semibold text-text-muted text-center py-2"
             >
+              <span className="hidden sm:inline">{d}</span>
+              <span className="sm:hidden">{d[0]}</span>
+            </div>
+          ))}
+          {blanks.map((i) => (
+            <div key={`blank-${i}`} />
+          ))}
+          {days.map((day) => {
+            const dateStr = formatDate(day);
+            const dayTasks = tasksByDate[dateStr] ?? [];
+            const isToday =
+              isCurrentMonth && day === today.getDate();
+
+            return (
               <div
-                className={`font-medium mb-1 ${
-                  isToday ? "text-accent" : "text-text-muted"
+                key={day}
+                className={`min-h-[60px] md:min-h-[80px] rounded-lg p-1.5 md:p-2 text-xs ${
+                  isToday
+                    ? "border border-accent/30 bg-accent/5"
+                    : "bg-bg-surface"
                 }`}
               >
-                {day}
-              </div>
-              {dayTasks.map((task) => (
-                <button
-                  key={task.id}
-                  onClick={() => onSelectTask(task)}
-                  className={`w-full text-left px-1.5 py-0.5 rounded text-[10px] truncate mb-0.5 transition-smooth hover:opacity-80 ${statusColors[task.status]}`}
+                <div
+                  className={`font-medium mb-1 ${
+                    isToday ? "text-accent" : "text-text-muted"
+                  }`}
                 >
-                  {task.name}
-                </button>
-              ))}
-            </div>
-          );
-        })}
+                  {day}
+                </div>
+                {dayTasks.map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => onSelectTask(task)}
+                    className={`w-full text-left px-1 md:px-1.5 py-0.5 rounded text-[10px] truncate mb-0.5 transition-smooth hover:opacity-80 ${statusColors[task.status]}`}
+                  >
+                    {task.name}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
