@@ -31,10 +31,11 @@ export function TaskGroup({ group, campaignId, hideDone, users, onSelectTask, on
   const handleAddTask = async () => {
     if (!newTaskName.trim()) return;
     try {
-      await createTask(group.id, newTaskName.trim());
+      const task = await createTask(group.id, newTaskName.trim());
       setNewTaskName("");
       setAdding(false);
       queryClient.invalidateQueries({ queryKey: ["campaign", campaignId] });
+      onSelectTask(task);
     } catch (err: any) {
       toast.error(err.message);
     }
