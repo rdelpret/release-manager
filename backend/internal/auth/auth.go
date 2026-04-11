@@ -205,6 +205,12 @@ func RequireAuth(next http.Handler) http.Handler {
 		}
 
 		userID, _ := session.Values["user_id"].(string)
+		if userID == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"error": "not authenticated"})
+			return
+		}
 		ctx := context.WithValue(r.Context(), ctxUserEmail, email)
 		ctx = context.WithValue(ctx, ctxUserID, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
