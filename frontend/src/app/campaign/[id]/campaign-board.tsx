@@ -108,6 +108,9 @@ export function CampaignBoard() {
         <input
           type="date"
           autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-form-type="other"
           value={campaign.release_date ?? ""}
           onChange={async (e) => {
             const date = e.target.value;
