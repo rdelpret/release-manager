@@ -75,7 +75,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen p-6 max-w-5xl mx-auto">
+    <div className="min-h-screen px-4 py-6 md:px-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-heading font-bold text-accent">Subwave</h1>
         <Button variant="ghost" size="sm" onClick={handleLogout} disabled={authLoading}>
@@ -105,7 +105,7 @@ export default function DashboardPage() {
       {showCreate && (
         <div className="mb-6 bg-bg-surface p-4 rounded-xl space-y-3">
           {/* Template picker */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {([
               { type: "single" as TemplateType, label: "Single", desc: "Standard release (8 weeks)", icon: Music },
               { type: "soundcloud_flip" as TemplateType, label: "SoundCloud Flip", desc: "Social-only, no DSPs (4 weeks)", icon: CloudUpload },
@@ -126,7 +126,7 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <input
               autoFocus
               autoComplete="off"
@@ -136,14 +136,16 @@ export default function DashboardPage() {
               placeholder="Campaign name..."
               className="flex-1 bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
             />
-            <Button onClick={handleCreate} className="bg-accent text-bg-base hover:bg-accent-dark">
-              Create
-            </Button>
-            <Button variant="ghost" onClick={() => setShowCreate(false)}>
-              Cancel
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleCreate} className="bg-accent text-bg-base hover:bg-accent-dark">
+                Create
+              </Button>
+              <Button variant="ghost" onClick={() => setShowCreate(false)}>
+                Cancel
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="text-xs text-text-muted">Release Date</label>
             <input
               type="date"

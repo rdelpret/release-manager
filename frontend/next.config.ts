@@ -5,6 +5,9 @@ const isProd = process.env.NODE_ENV === "production";
 const nextConfig: NextConfig = {
   // Static export for Cloudflare deployment
   ...(isProd ? { output: "export" } : {}),
+  turbopack: {
+    root: __dirname,
+  },
   experimental: {
     optimizePackageImports: ["lucide-react", "@dnd-kit/core", "@dnd-kit/sortable"],
   },
