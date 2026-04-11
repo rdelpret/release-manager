@@ -2,7 +2,6 @@
 
 import { memo } from "react";
 import type { Task, User } from "@/lib/types";
-import Image from "next/image";
 import { Circle, CircleDot, CheckCircle2, GripVertical } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -22,18 +21,6 @@ interface TaskItemProps {
 
 function AvatarBadge({ user }: { user: User }) {
   const initial = user.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "?";
-  if (user.avatar_url) {
-    return (
-      <Image
-        src={user.avatar_url}
-        alt={user.name}
-        title={user.name}
-        width={20}
-        height={20}
-        className="rounded-full object-cover"
-      />
-    );
-  }
   return (
     <span
       title={user.name}
