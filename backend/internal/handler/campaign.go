@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -49,6 +50,7 @@ func (s *Server) handleCreateCampaign(w http.ResponseWriter, r *http.Request) {
 
 	campaign, err := s.store.CreateCampaign(r.Context(), userID, req.Name, req.ReleaseDate, req.TemplateType)
 	if err != nil {
+		log.Printf("Failed to create campaign for user %s: %v", userID, err)
 		writeError(w, http.StatusInternalServerError, "Failed to create campaign")
 		return
 	}
