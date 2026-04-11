@@ -69,6 +69,7 @@ func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 
 	campaign, err := s.store.GetFullCampaign(r.Context(), campaignID)
 	if err != nil {
+		log.Printf("Failed to get campaign %s: %v", campaignID, err)
 		writeError(w, http.StatusNotFound, "Campaign not found")
 		return
 	}
