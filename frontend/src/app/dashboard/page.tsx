@@ -148,6 +148,9 @@ export default function DashboardPage() {
             <input
               type="date"
               autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
+              data-form-type="other"
               value={releaseDate}
               onChange={(e) => setReleaseDate(e.target.value)}
               className="bg-transparent border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
