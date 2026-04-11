@@ -31,7 +31,7 @@ func (s *Store) CreateTask(ctx context.Context, groupID, name string) (*model.Ta
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO tasks (task_group_id, name, position)
 		VALUES ($1, $2, $3)
-		RETURNING id, task_group_id, name, description, status, due_date, assigned_to, position, created_at, updated_at
+		RETURNING id, task_group_id, name, description, status, due_date::text, assigned_to, position, created_at, updated_at
 	`, groupID, name, nextPos).Scan(&task.ID, &task.TaskGroupID, &task.Name, &task.Description,
 		&task.Status, &task.DueDate, &task.AssignedTo, &task.Position, &task.CreatedAt, &task.UpdatedAt)
 	if err != nil {
@@ -89,7 +89,7 @@ func (s *Store) UpdateTask(ctx context.Context, taskID string, updates TaskUpdat
 		query += clause
 	}
 	query += " WHERE id = $" + strconv.Itoa(argN)
-	query += " RETURNING id, task_group_id, name, description, status, due_date, assigned_to, position, created_at, updated_at"
+	query += " RETURNING id, task_group_id, name, description, status, due_date::text, assigned_to, position, created_at, updated_at"
 
 	var task model.Task
 	err := s.pool.QueryRow(ctx, query, args...).Scan(&task.ID, &task.TaskGroupID, &task.Name,
@@ -187,7 +187,7 @@ func (s *Store) getSubtask(ctx context.Context, subtaskID string) (*model.Subtas
 
 func (s *Store) GetTasksByDueDate(ctx context.Context, campaignID string) ([]model.Task, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date, t.assigned_to, t.position, t.created_at, t.updated_at
+		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date::text, t.assigned_to, t.position, t.created_at, t.updated_at
 		FROM tasks t
 		JOIN task_groups tg ON tg.id = t.task_group_id
 		JOIN task_lists tl ON tl.id = tg.task_list_id
