@@ -591,57 +591,160 @@ func (s *Store) populateTemplate(ctx context.Context, tx pgx.Tx, campaignID, tem
 		}
 	}
 
+	// --- Step 1: Batch insert all task lists ---
+	var listNames []string
+	var listColors []string
+	var listPositions []int
 	for listPos, list := range tmpl {
-		var listID string
-		err := tx.QueryRow(ctx, `
-			INSERT INTO task_lists (campaign_id, name, color, position)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id
-		`, campaignID, list.Name, list.Color, (listPos+1)*100).Scan(&listID)
-		if err != nil {
-			return fmt.Errorf("inserting task list %s: %w", list.Name, err)
+		listNames = append(listNames, list.Name)
+		listColors = append(listColors, list.Color)
+		listPositions = append(listPositions, (listPos+1)*100)
+	}
+
+	listRows, err := tx.Query(ctx, `
+		INSERT INTO task_lists (campaign_id, name, color, position)
+		SELECT $1, unnest($2::text[]), unnest($3::text[]), unnest($4::int[])
+		RETURNING id, name
+	`, campaignID, listNames, listColors, listPositions)
+	if err != nil {
+		return fmt.Errorf("batch inserting task lists: %w", err)
+	}
+	listIDByName := map[string]string{}
+	for listRows.Next() {
+		var id, name string
+		if err := listRows.Scan(&id, &name); err != nil {
+			listRows.Close()
+			return fmt.Errorf("scanning task list: %w", err)
 		}
+		listIDByName[name] = id
+	}
+	listRows.Close()
+	if err := listRows.Err(); err != nil {
+		return fmt.Errorf("task list rows: %w", err)
+	}
 
+	// --- Step 2: Batch insert all task groups ---
+	var groupListIDs []string
+	var groupNames []string
+	var groupPositions []int
+	for _, list := range tmpl {
+		listID := listIDByName[list.Name]
 		for groupPos, group := range list.Groups {
-			var groupID string
-			err := tx.QueryRow(ctx, `
-				INSERT INTO task_groups (task_list_id, name, position)
-				VALUES ($1, $2, $3)
-				RETURNING id
-			`, listID, group.Name, (groupPos+1)*100).Scan(&groupID)
-			if err != nil {
-				return fmt.Errorf("inserting task group %s: %w", group.Name, err)
-			}
+			groupListIDs = append(groupListIDs, listID)
+			groupNames = append(groupNames, group.Name)
+			groupPositions = append(groupPositions, (groupPos+1)*100)
+		}
+	}
 
+	groupRows, err := tx.Query(ctx, `
+		INSERT INTO task_groups (task_list_id, name, position)
+		SELECT unnest($1::uuid[]), unnest($2::text[]), unnest($3::int[])
+		RETURNING id, task_list_id, name
+	`, groupListIDs, groupNames, groupPositions)
+	if err != nil {
+		return fmt.Errorf("batch inserting task groups: %w", err)
+	}
+	// Key by "listID|groupName" since group names are unique within a list
+	groupIDByKey := map[string]string{}
+	for groupRows.Next() {
+		var id, listID, name string
+		if err := groupRows.Scan(&id, &listID, &name); err != nil {
+			groupRows.Close()
+			return fmt.Errorf("scanning task group: %w", err)
+		}
+		groupIDByKey[listID+"|"+name] = id
+	}
+	groupRows.Close()
+	if err := groupRows.Err(); err != nil {
+		return fmt.Errorf("task group rows: %w", err)
+	}
+
+	// --- Step 3: Batch insert all tasks ---
+	var taskGroupIDs []string
+	var taskNames []string
+	var taskPositions []int
+	type taskRef struct {
+		groupID  string
+		name     string
+		subtasks []string
+	}
+	var tasksWithSubtasks []taskRef
+
+	// pgx needs concrete []string for due dates. Use empty string sentinel for NULL, cast in SQL.
+	var dueDateStrs []string
+
+	for _, list := range tmpl {
+		listID := listIDByName[list.Name]
+		for _, group := range list.Groups {
+			groupID := groupIDByKey[listID+"|"+group.Name]
 			for taskPos, task := range group.Tasks {
-				// Calculate due date from release date + offset
-				var dueDate *string
+				taskGroupIDs = append(taskGroupIDs, groupID)
+				taskNames = append(taskNames, task.Name)
+				taskPositions = append(taskPositions, (taskPos+1)*100)
+
 				if relDate != nil && task.DaysOffset != nil {
-					d := relDate.AddDate(0, 0, *task.DaysOffset).Format("2006-01-02")
-					dueDate = &d
+					dueDateStrs = append(dueDateStrs, relDate.AddDate(0, 0, *task.DaysOffset).Format("2006-01-02"))
+				} else {
+					dueDateStrs = append(dueDateStrs, "")
 				}
 
-				var taskID string
-				err := tx.QueryRow(ctx, `
-					INSERT INTO tasks (task_group_id, name, due_date, position)
-					VALUES ($1, $2, $3, $4)
-					RETURNING id
-				`, groupID, task.Name, dueDate, (taskPos+1)*100).Scan(&taskID)
-				if err != nil {
-					return fmt.Errorf("inserting task %s: %w", task.Name, err)
-				}
-
-				for subPos, subtask := range task.Subtasks {
-					_, err := tx.Exec(ctx, `
-						INSERT INTO subtasks (task_id, name, position)
-						VALUES ($1, $2, $3)
-					`, taskID, subtask, (subPos+1)*100)
-					if err != nil {
-						return fmt.Errorf("inserting subtask %s: %w", subtask, err)
-					}
+				if len(task.Subtasks) > 0 {
+					tasksWithSubtasks = append(tasksWithSubtasks, taskRef{
+						groupID:  groupID,
+						name:     task.Name,
+						subtasks: task.Subtasks,
+					})
 				}
 			}
 		}
 	}
+
+	taskRows, err := tx.Query(ctx, `
+		INSERT INTO tasks (task_group_id, name, due_date, position)
+		SELECT unnest($1::uuid[]), unnest($2::text[]),
+			NULLIF(unnest($3::text[]), '')::date,
+			unnest($4::int[])
+		RETURNING id, task_group_id, name
+	`, taskGroupIDs, taskNames, dueDateStrs, taskPositions)
+	if err != nil {
+		return fmt.Errorf("batch inserting tasks: %w", err)
+	}
+	taskIDByKey := map[string]string{}
+	for taskRows.Next() {
+		var id, groupID, name string
+		if err := taskRows.Scan(&id, &groupID, &name); err != nil {
+			taskRows.Close()
+			return fmt.Errorf("scanning task: %w", err)
+		}
+		taskIDByKey[groupID+"|"+name] = id
+	}
+	taskRows.Close()
+	if err := taskRows.Err(); err != nil {
+		return fmt.Errorf("task rows: %w", err)
+	}
+
+	// --- Step 4: Batch insert all subtasks ---
+	if len(tasksWithSubtasks) > 0 {
+		var subTaskIDs []string
+		var subNames []string
+		var subPositions []int
+		for _, ref := range tasksWithSubtasks {
+			taskID := taskIDByKey[ref.groupID+"|"+ref.name]
+			for subPos, subtask := range ref.subtasks {
+				subTaskIDs = append(subTaskIDs, taskID)
+				subNames = append(subNames, subtask)
+				subPositions = append(subPositions, (subPos+1)*100)
+			}
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO subtasks (task_id, name, position)
+			SELECT unnest($1::uuid[]), unnest($2::text[]), unnest($3::int[])
+		`, subTaskIDs, subNames, subPositions)
+		if err != nil {
+			return fmt.Errorf("batch inserting subtasks: %w", err)
+		}
+	}
+
 	return nil
 }

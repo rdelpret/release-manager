@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -84,4 +85,29 @@ func TestGetFullCampaign(t *testing.T) {
 	}
 	// Template population is a stub until Task 7 — no task lists expected yet
 	// After Task 7, this test should verify len(full.TaskLists) == 5
+}
+
+func BenchmarkCreateCampaign(b *testing.B) {
+	if os.Getenv("DATABASE_URL") == "" {
+		b.Skip("DATABASE_URL not set, skipping integration benchmark")
+	}
+	s, err := New()
+	if err != nil {
+		b.Fatalf("failed to create store: %v", err)
+	}
+	defer s.Close()
+
+	user, err := s.UpsertUser(context.Background(), "bench@example.com", "Bench User", nil)
+	if err != nil {
+		b.Fatalf("failed to create user: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		campaign, err := s.CreateCampaign(context.Background(), user.ID, fmt.Sprintf("Bench %d", i), nil, "single")
+		if err != nil {
+			b.Fatalf("failed to create campaign: %v", err)
+		}
+		s.DeleteCampaign(context.Background(), campaign.ID)
+	}
 }
