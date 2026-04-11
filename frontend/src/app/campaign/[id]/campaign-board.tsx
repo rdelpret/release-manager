@@ -219,6 +219,7 @@ export function CampaignBoard() {
       {selectedTask && (
         <Suspense fallback={null}>
           <TaskDetail
+            key={selectedTask.id}
             task={selectedTask}
             onClose={() => setSelectedTask(null)}
             onUpdate={() => {
