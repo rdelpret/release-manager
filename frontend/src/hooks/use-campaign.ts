@@ -40,7 +40,18 @@ export function useArchiveCampaign() {
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
       api.archiveCampaign(id, archived),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+    onMutate: async ({ id, archived }) => {
+      await queryClient.cancelQueries({ queryKey: ["campaigns"] });
+      const prev = queryClient.getQueryData<Campaign[]>(["campaigns"]);
+      queryClient.setQueryData<Campaign[]>(["campaigns"], (old) =>
+        old?.map((c) => (c.id === id ? { ...c, archived } : c))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) queryClient.setQueryData(["campaigns"], context.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
   });
 }
 
@@ -48,7 +59,18 @@ export function useDeleteCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteCampaign(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ["campaigns"] });
+      const prev = queryClient.getQueryData<Campaign[]>(["campaigns"]);
+      queryClient.setQueryData<Campaign[]>(["campaigns"], (old) =>
+        old?.filter((c) => c.id !== id)
+      );
+      return { prev };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.prev) queryClient.setQueryData(["campaigns"], context.prev);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["campaigns"] }),
   });
 }
 
