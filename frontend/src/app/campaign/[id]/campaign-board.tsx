@@ -84,6 +84,7 @@ export function CampaignBoard() {
     try {
       await updateTask(taskId, { status });
       queryClient.invalidateQueries({ queryKey: ["campaign", id] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     } catch (err: any) {
       // Rollback
       if (prev) queryClient.setQueryData(["campaign", id], prev);
@@ -222,6 +223,7 @@ export function CampaignBoard() {
             onClose={() => setSelectedTask(null)}
             onUpdate={() => {
               queryClient.invalidateQueries({ queryKey: ["campaign", id] });
+              queryClient.invalidateQueries({ queryKey: ["campaigns"] });
               // Refresh selected task
               if (selectedTask) {
                 const updated = campaign?.task_lists
