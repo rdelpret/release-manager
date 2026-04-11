@@ -24,9 +24,21 @@ interface TaskDetailProps {
 
 export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
   const [name, setName] = useState(task.name);
+  const [status, setStatus] = useState(task.status);
   const [dueDate, setDueDate] = useState(task.due_date ?? "");
+  const [assignedTo, setAssignedTo] = useState(task.assigned_to ?? "");
   const [newSubtaskName, setNewSubtaskName] = useState("");
   const { data: users } = useUsers();
+
+  // Re-sync local state when a different task is selected
+  const [trackedId, setTrackedId] = useState(task.id);
+  if (task.id !== trackedId) {
+    setTrackedId(task.id);
+    setName(task.name);
+    setStatus(task.status);
+    setDueDate(task.due_date ?? "");
+    setAssignedTo(task.assigned_to ?? "");
+  }
 
   const handleNameBlur = async () => {
     if (name !== task.name && name.trim()) {
@@ -39,11 +51,14 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
     }
   };
 
-  const handleStatusChange = async (status: string) => {
+  const handleStatusChange = async (newStatus: string) => {
+    const prev = status;
+    setStatus(newStatus as Task["status"]);
     try {
-      await updateTask(task.id, { status } as any);
+      await updateTask(task.id, { status: newStatus } as any);
       onUpdate();
     } catch (err: any) {
+      setStatus(prev);
       toast.error(err.message);
     }
   };
@@ -59,10 +74,13 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
   };
 
   const handleAssign = async (userId: string) => {
+    const prev = assignedTo;
+    setAssignedTo(userId);
     try {
       await updateTask(task.id, { assigned_to: userId || undefined } as any);
       onUpdate();
     } catch (err: any) {
+      setAssignedTo(prev);
       toast.error(err.message);
     }
   };
@@ -115,7 +133,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
               key={opt.value}
               onClick={() => handleStatusChange(opt.value)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-smooth ${
-                task.status === opt.value
+                status === opt.value
                   ? `${opt.color} bg-white/10`
                   : "text-text-muted hover:text-text-primary"
               }`}
@@ -132,7 +150,7 @@ export function TaskDetail({ task, onClose, onUpdate }: TaskDetailProps) {
           Assigned To
         </label>
         <select
-          value={task.assigned_to ?? ""}
+          value={assignedTo}
           onChange={(e) => handleAssign(e.target.value)}
           autoComplete="off"
           className="w-full bg-transparent border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent"
