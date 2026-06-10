@@ -17,22 +17,13 @@ type TaskUpdate struct {
 }
 
 func (s *Store) CreateTask(ctx context.Context, groupID, name string) (*model.Task, error) {
-	var maxPos *int
-	s.pool.QueryRow(ctx, `
-		SELECT MAX(position) FROM tasks WHERE task_group_id = $1
-	`, groupID).Scan(&maxPos)
-
-	nextPos := 100
-	if maxPos != nil {
-		nextPos = *maxPos + 100
-	}
-
 	var task model.Task
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO tasks (task_group_id, name, position)
-		VALUES ($1, $2, $3)
+		SELECT $1::uuid, $2::text, COALESCE(MAX(position), 0) + 100
+		FROM tasks WHERE task_group_id = $1
 		RETURNING id, task_group_id, name, description, status, due_date::text, assigned_to, position, created_at, updated_at
-	`, groupID, name, nextPos).Scan(&task.ID, &task.TaskGroupID, &task.Name, &task.Description,
+	`, groupID, name).Scan(&task.ID, &task.TaskGroupID, &task.Name, &task.Description,
 		&task.Status, &task.DueDate, &task.AssignedTo, &task.Position, &task.CreatedAt, &task.UpdatedAt)
 	if err != nil {
 		return nil, err
@@ -106,22 +97,13 @@ func (s *Store) DeleteTask(ctx context.Context, taskID string) error {
 }
 
 func (s *Store) CreateSubtask(ctx context.Context, taskID, name string) (*model.Subtask, error) {
-	var maxPos *int
-	s.pool.QueryRow(ctx, `
-		SELECT MAX(position) FROM subtasks WHERE task_id = $1
-	`, taskID).Scan(&maxPos)
-
-	nextPos := 100
-	if maxPos != nil {
-		nextPos = *maxPos + 100
-	}
-
 	var subtask model.Subtask
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO subtasks (task_id, name, position)
-		VALUES ($1, $2, $3)
+		SELECT $1::uuid, $2::text, COALESCE(MAX(position), 0) + 100
+		FROM subtasks WHERE task_id = $1
 		RETURNING id, task_id, name, is_complete, position
-	`, taskID, name, nextPos).Scan(&subtask.ID, &subtask.TaskID, &subtask.Name, &subtask.IsComplete, &subtask.Position)
+	`, taskID, name).Scan(&subtask.ID, &subtask.TaskID, &subtask.Name, &subtask.IsComplete, &subtask.Position)
 	if err != nil {
 		return nil, err
 	}
