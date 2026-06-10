@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rdelpret/music-release-planner/backend/internal/model"
 	"github.com/rdelpret/music-release-planner/backend/internal/template"
+	"golang.org/x/sync/errgroup"
 )
 
 // IsCampaignMember checks if a user is a member of a campaign.
@@ -155,102 +156,144 @@ func (s *Store) ListCampaigns(ctx context.Context, userID string) ([]model.Campa
 }
 
 func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.Campaign, error) {
-	// Fetch campaign
-	var campaign model.Campaign
-	err := s.pool.QueryRow(ctx, `
-		SELECT id, created_by, name, archived, template_type, release_date::text, schedule_weeks, created_at, updated_at
-		FROM campaigns WHERE id = $1
-	`, campaignID).Scan(
-		&campaign.ID, &campaign.CreatedBy, &campaign.Name, &campaign.Archived,
-		&campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks,
-		&campaign.CreatedAt, &campaign.UpdatedAt,
+	var (
+		campaign model.Campaign
+		lists    []model.TaskList
+		groups   []model.TaskGroup
+		tasks    []model.Task
+		subtasks []model.Subtask
 	)
-	if err != nil {
+
+	// All five queries filter on campaign_id alone, so they can run
+	// concurrently; only the in-memory assembly below is order-dependent.
+	g, gctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		err := s.pool.QueryRow(gctx, `
+			SELECT id, created_by, name, archived, template_type, release_date::text, schedule_weeks, created_at, updated_at
+			FROM campaigns WHERE id = $1
+		`, campaignID).Scan(
+			&campaign.ID, &campaign.CreatedBy, &campaign.Name, &campaign.Archived,
+			&campaign.TemplateType, &campaign.ReleaseDate, &campaign.ScheduleWeeks,
+			&campaign.CreatedAt, &campaign.UpdatedAt,
+		)
 		if err == pgx.ErrNoRows {
-			return nil, fmt.Errorf("campaign not found")
+			return fmt.Errorf("campaign not found")
 		}
+		return err
+	})
+
+	g.Go(func() error {
+		rows, err := s.pool.Query(gctx, `
+			SELECT id, campaign_id, name, color, position
+			FROM task_lists WHERE campaign_id = $1 ORDER BY position
+		`, campaignID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var tl model.TaskList
+			if err := rows.Scan(&tl.ID, &tl.CampaignID, &tl.Name, &tl.Color, &tl.Position); err != nil {
+				return err
+			}
+			lists = append(lists, tl)
+		}
+		return rows.Err()
+	})
+
+	g.Go(func() error {
+		rows, err := s.pool.Query(gctx, `
+			SELECT tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed
+			FROM task_groups tg
+			JOIN task_lists tl ON tl.id = tg.task_list_id
+			WHERE tl.campaign_id = $1
+			ORDER BY tg.position
+		`, campaignID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var tg model.TaskGroup
+			if err := rows.Scan(&tg.ID, &tg.TaskListID, &tg.Name, &tg.Position, &tg.Collapsed); err != nil {
+				return err
+			}
+			groups = append(groups, tg)
+		}
+		return rows.Err()
+	})
+
+	g.Go(func() error {
+		rows, err := s.pool.Query(gctx, `
+			SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date::text, t.assigned_to, t.position, t.created_at, t.updated_at
+			FROM tasks t
+			JOIN task_groups tg ON tg.id = t.task_group_id
+			JOIN task_lists tl ON tl.id = tg.task_list_id
+			WHERE tl.campaign_id = $1
+			ORDER BY t.position
+		`, campaignID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var t model.Task
+			if err := rows.Scan(&t.ID, &t.TaskGroupID, &t.Name, &t.Description, &t.Status, &t.DueDate, &t.AssignedTo, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
+				return err
+			}
+			tasks = append(tasks, t)
+		}
+		return rows.Err()
+	})
+
+	g.Go(func() error {
+		rows, err := s.pool.Query(gctx, `
+			SELECT st.id, st.task_id, st.name, st.is_complete, st.position
+			FROM subtasks st
+			JOIN tasks t ON t.id = st.task_id
+			JOIN task_groups tg ON tg.id = t.task_group_id
+			JOIN task_lists tl ON tl.id = tg.task_list_id
+			WHERE tl.campaign_id = $1
+			ORDER BY st.position
+		`, campaignID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var st model.Subtask
+			if err := rows.Scan(&st.ID, &st.TaskID, &st.Name, &st.IsComplete, &st.Position); err != nil {
+				return err
+			}
+			subtasks = append(subtasks, st)
+		}
+		return rows.Err()
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 
-	// Fetch task lists
-	listRows, err := s.pool.Query(ctx, `
-		SELECT id, campaign_id, name, color, position
-		FROM task_lists WHERE campaign_id = $1 ORDER BY position
-	`, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer listRows.Close()
-
+	// Assemble the hierarchy (same logic as before, from the collected slices).
 	listMap := map[string]int{} // list ID -> index
-	for listRows.Next() {
-		var tl model.TaskList
-		if err := listRows.Scan(&tl.ID, &tl.CampaignID, &tl.Name, &tl.Color, &tl.Position); err != nil {
-			return nil, err
-		}
+	for _, tl := range lists {
 		listMap[tl.ID] = len(campaign.TaskLists)
 		campaign.TaskLists = append(campaign.TaskLists, tl)
 	}
-	if err := listRows.Err(); err != nil {
-		return nil, err
-	}
-	listRows.Close()
 
-	if len(campaign.TaskLists) == 0 {
-		return &campaign, nil
-	}
-
-	// Fetch task groups
-	groupRows, err := s.pool.Query(ctx, `
-		SELECT tg.id, tg.task_list_id, tg.name, tg.position, tg.collapsed
-		FROM task_groups tg
-		JOIN task_lists tl ON tl.id = tg.task_list_id
-		WHERE tl.campaign_id = $1
-		ORDER BY tg.position
-	`, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer groupRows.Close()
-
-	groupMap := map[string]int{}   // group ID -> index in parent list
+	groupMap := map[string]int{}     // group ID -> index in parent list
 	groupList := map[string]string{} // group ID -> list ID
-	for groupRows.Next() {
-		var tg model.TaskGroup
-		if err := groupRows.Scan(&tg.ID, &tg.TaskListID, &tg.Name, &tg.Position, &tg.Collapsed); err != nil {
-			return nil, err
-		}
+	for _, tg := range groups {
 		li := listMap[tg.TaskListID]
 		groupMap[tg.ID] = len(campaign.TaskLists[li].TaskGroups)
 		groupList[tg.ID] = tg.TaskListID
 		campaign.TaskLists[li].TaskGroups = append(campaign.TaskLists[li].TaskGroups, tg)
 	}
-	if err := groupRows.Err(); err != nil {
-		return nil, err
-	}
-	groupRows.Close()
 
-	// Fetch tasks
-	taskRows, err := s.pool.Query(ctx, `
-		SELECT t.id, t.task_group_id, t.name, t.description, t.status, t.due_date::text, t.assigned_to, t.position, t.created_at, t.updated_at
-		FROM tasks t
-		JOIN task_groups tg ON tg.id = t.task_group_id
-		JOIN task_lists tl ON tl.id = tg.task_list_id
-		WHERE tl.campaign_id = $1
-		ORDER BY t.position
-	`, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer taskRows.Close()
-
-	taskMap := map[string]int{}    // task ID -> index in parent group
+	taskMap := map[string]int{}      // task ID -> index in parent group
 	taskGroup := map[string]string{} // task ID -> group ID
-	for taskRows.Next() {
-		var t model.Task
-		if err := taskRows.Scan(&t.ID, &t.TaskGroupID, &t.Name, &t.Description, &t.Status, &t.DueDate, &t.AssignedTo, &t.Position, &t.CreatedAt, &t.UpdatedAt); err != nil {
-			return nil, err
-		}
+	for _, t := range tasks {
 		listID := groupList[t.TaskGroupID]
 		li := listMap[listID]
 		gi := groupMap[t.TaskGroupID]
@@ -258,31 +301,8 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		taskGroup[t.ID] = t.TaskGroupID
 		campaign.TaskLists[li].TaskGroups[gi].Tasks = append(campaign.TaskLists[li].TaskGroups[gi].Tasks, t)
 	}
-	if err := taskRows.Err(); err != nil {
-		return nil, err
-	}
-	taskRows.Close()
 
-	// Fetch subtasks
-	subtaskRows, err := s.pool.Query(ctx, `
-		SELECT st.id, st.task_id, st.name, st.is_complete, st.position
-		FROM subtasks st
-		JOIN tasks t ON t.id = st.task_id
-		JOIN task_groups tg ON tg.id = t.task_group_id
-		JOIN task_lists tl ON tl.id = tg.task_list_id
-		WHERE tl.campaign_id = $1
-		ORDER BY st.position
-	`, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer subtaskRows.Close()
-
-	for subtaskRows.Next() {
-		var st model.Subtask
-		if err := subtaskRows.Scan(&st.ID, &st.TaskID, &st.Name, &st.IsComplete, &st.Position); err != nil {
-			return nil, err
-		}
+	for _, st := range subtasks {
 		gID := taskGroup[st.TaskID]
 		listID := groupList[gID]
 		li := listMap[listID]
@@ -291,9 +311,6 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 		campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks = append(
 			campaign.TaskLists[li].TaskGroups[gi].Tasks[ti].Subtasks, st,
 		)
-	}
-	if err := subtaskRows.Err(); err != nil {
-		return nil, err
 	}
 
 	return &campaign, nil

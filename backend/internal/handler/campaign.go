@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rdelpret/music-release-planner/backend/internal/auth"
@@ -61,15 +62,32 @@ func (s *Server) handleGetCampaign(w http.ResponseWriter, r *http.Request) {
 	campaignID := chi.URLParam(r, "id")
 	userID := auth.GetUserID(r)
 
-	ok, err := s.store.IsCampaignMember(r.Context(), campaignID, userID)
-	if err != nil || !ok {
+	// Membership check and data fetch are independent reads — run them
+	// concurrently and enforce membership before writing anything out.
+	var (
+		wg          sync.WaitGroup
+		member      bool
+		memberErr   error
+		campaign    *model.Campaign
+		campaignErr error
+	)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		member, memberErr = s.store.IsCampaignMember(r.Context(), campaignID, userID)
+	}()
+	go func() {
+		defer wg.Done()
+		campaign, campaignErr = s.store.GetFullCampaign(r.Context(), campaignID)
+	}()
+	wg.Wait()
+
+	if memberErr != nil || !member {
 		writeError(w, http.StatusForbidden, "Forbidden")
 		return
 	}
-
-	campaign, err := s.store.GetFullCampaign(r.Context(), campaignID)
-	if err != nil {
-		log.Printf("Failed to get campaign %s: %v", campaignID, err)
+	if campaignErr != nil {
+		log.Printf("Failed to get campaign %s: %v", campaignID, campaignErr)
 		writeError(w, http.StatusNotFound, "Campaign not found")
 		return
 	}
