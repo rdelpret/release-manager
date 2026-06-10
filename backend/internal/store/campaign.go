@@ -285,7 +285,10 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	groupMap := map[string]int{}     // group ID -> index in parent list
 	groupList := map[string]string{} // group ID -> list ID
 	for _, tg := range groups {
-		li := listMap[tg.TaskListID]
+		li, ok := listMap[tg.TaskListID]
+		if !ok {
+			continue // orphan row from a concurrent delete; skip
+		}
 		groupMap[tg.ID] = len(campaign.TaskLists[li].TaskGroups)
 		groupList[tg.ID] = tg.TaskListID
 		campaign.TaskLists[li].TaskGroups = append(campaign.TaskLists[li].TaskGroups, tg)
@@ -294,8 +297,11 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	taskMap := map[string]int{}      // task ID -> index in parent group
 	taskGroup := map[string]string{} // task ID -> group ID
 	for _, t := range tasks {
-		listID := groupList[t.TaskGroupID]
-		li := listMap[listID]
+		listID, ok := groupList[t.TaskGroupID]
+		if !ok {
+			continue // orphan row from a concurrent delete; skip
+		}
+		li := listMap[listID] // guaranteed by construction
 		gi := groupMap[t.TaskGroupID]
 		taskMap[t.ID] = len(campaign.TaskLists[li].TaskGroups[gi].Tasks)
 		taskGroup[t.ID] = t.TaskGroupID
@@ -303,7 +309,10 @@ func (s *Store) GetFullCampaign(ctx context.Context, campaignID string) (*model.
 	}
 
 	for _, st := range subtasks {
-		gID := taskGroup[st.TaskID]
+		gID, ok := taskGroup[st.TaskID]
+		if !ok {
+			continue // orphan row from a concurrent delete; skip
+		}
 		listID := groupList[gID]
 		li := listMap[listID]
 		gi := groupMap[gID]
