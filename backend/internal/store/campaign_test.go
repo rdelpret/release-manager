@@ -83,8 +83,48 @@ func TestGetFullCampaign(t *testing.T) {
 	if full.Name != "Full Test" {
 		t.Errorf("expected name 'Full Test', got '%s'", full.Name)
 	}
-	// Template population is a stub until Task 7 — no task lists expected yet
-	// After Task 7, this test should verify len(full.TaskLists) == 5
+
+	// The "single" template creates 5 task lists.
+	if len(full.TaskLists) != 5 {
+		t.Fatalf("expected 5 task lists, got %d", len(full.TaskLists))
+	}
+
+	// Lists must be ordered by ascending Position.
+	for i := 1; i < len(full.TaskLists); i++ {
+		if full.TaskLists[i].Position < full.TaskLists[i-1].Position {
+			t.Errorf("task lists not ordered by position: index %d (%d) < index %d (%d)",
+				i, full.TaskLists[i].Position, i-1, full.TaskLists[i-1].Position)
+		}
+	}
+
+	// At least one list must have groups, and at least one group must have tasks.
+	foundGroup := false
+	foundTask := false
+	foundSubtask := false
+	for _, tl := range full.TaskLists {
+		if len(tl.TaskGroups) > 0 {
+			foundGroup = true
+		}
+		for _, tg := range tl.TaskGroups {
+			if len(tg.Tasks) > 0 {
+				foundTask = true
+			}
+			for _, task := range tg.Tasks {
+				if len(task.Subtasks) > 0 {
+					foundSubtask = true
+				}
+			}
+		}
+	}
+	if !foundGroup {
+		t.Error("expected at least one task list to have groups")
+	}
+	if !foundTask {
+		t.Error("expected at least one group to have tasks")
+	}
+	if !foundSubtask {
+		t.Error("expected at least one task to have subtasks")
+	}
 }
 
 func BenchmarkCreateCampaign(b *testing.B) {
